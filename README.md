@@ -48,4 +48,4 @@ This project is licensed under the GNU Affero General Public License v3.0, which
 - ✅ Open source contributions welcome  
 - ❌ **Skidders watch out!**: Any use (including web services) requires open sourcing your ENTIRE codebase
 - ❌ Cannot be used in proprietary/closed-source applications
-
+- If you violate this, I will Destroy U! :D
