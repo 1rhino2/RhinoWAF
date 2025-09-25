@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"rhinowaf/waf"
 	"rhinowaf/handlers"
+	"rhinowaf/waf"
 )
 
 func main() {
@@ -14,4 +14,4 @@ func main() {
 	http.HandleFunc("/flood", waf.AdaptiveProtect(handlers.Flood))
 	fmt.Println("RhinoWAF on :8080")
 	http.ListenAndServe(":8080", nil)
-}
+} // Dont you skid kid, or I will devour your family line.
