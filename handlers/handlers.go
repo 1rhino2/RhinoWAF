@@ -6,7 +6,7 @@ import (
 )
 
 func Home(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "WebDefender: Home OK")
+	fmt.Fprintf(w, "RhinoWAF: Home OK")
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {

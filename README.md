@@ -1,4 +1,4 @@
-# WebDefender
+# RhinoWAF
 
 A Detailed Web Application Firewall (WAF) built in Go with adaptive protection against DDoS attacks, SQL injection, XSS, and other web threats.
 
@@ -13,9 +13,9 @@ A Detailed Web Application Firewall (WAF) built in Go with adaptive protection a
 ## Structure
 
 ```
-WebDefender/
+RhinoWAF/
 ├── cmd/
-│   └── webdefender/
+│   └── rhinowaf/
 │       └── main.go
 ├── handlers/
 │   └── handlers.go
@@ -36,7 +36,7 @@ WebDefender/
 - Fast RPS, modular
 
 Run:  
-`go run cmd/webdefender/main.go`
+`go run cmd/rhinowaf/main.go`
 
 ## License
 
@@ -48,4 +48,3 @@ This project is licensed under the GNU Affero General Public License v3.0, which
 - ✅ Open source contributions welcome  
 - ❌ **Skidders watch out!**: Any use (including web services) requires open sourcing your ENTIRE codebase
 - ❌ Cannot be used in proprietary/closed-source applications
-

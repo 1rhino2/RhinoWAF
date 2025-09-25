@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"webdefender/waf"
-	"webdefender/handlers"
+	"rhinowaf/waf"
+	"rhinowaf/handlers"
 )
 
 func main() {
@@ -12,6 +12,6 @@ func main() {
 	http.HandleFunc("/login", waf.AdaptiveProtect(handlers.Login))
 	http.HandleFunc("/echo", waf.AdaptiveProtect(handlers.Echo))
 	http.HandleFunc("/flood", waf.AdaptiveProtect(handlers.Flood))
-	fmt.Println("WebDefender WAF on :8080")
+	fmt.Println("RhinoWAF on :8080")
 	http.ListenAndServe(":8080", nil)
 }

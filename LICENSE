@@ -1,4 +1,4 @@
-WebDefender - Web Application Firewall
+RhinoWAF - Web Application Firewall
 Copyright (c) 2025 1rhino2 on discord. All Rights Reserved.
 
 This program is free software: you can redistribute it and/or modify
@@ -19,6 +19,6 @@ AntiSkid:
 - This includes web services and SaaS applications  
 - Credit must be given to the original author
 - Any modifications must be shared under the same AGPL-3.0 License
-Attribution must be included in every file using this code: "Contains code from WebDefender WAF by 1rhino2 - <https://github.com/1rhino2/WebDefender - AGPL-3.0 License"
+Attribution must be included in every file using this code: "Contains code from RhinoWAF by 1rhino2 - <https://github.com/1rhino2/RhinoWAF - AGPL-3.0 License"
 
 For commercial/proprietary use without AGPL requirements, contact: 1rhino2 on discord
