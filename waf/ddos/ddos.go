@@ -83,4 +83,4 @@ func GetIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return ip
-}
+} // If you skid, I will commit my white payload into your ass.

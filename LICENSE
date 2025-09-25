@@ -18,7 +18,8 @@ AntiSkid:
 - Anyone using this code must open source their ENTIRE application
 - This includes web services and SaaS applications  
 - Credit must be given to the original author
-- Any modifications must be shared under the same AGPL-3.0 License
+- Any modifications must be shared under the same AGPL-3.0 license
+- Dont skid or my foot will be in your ass.
 Attribution must be included in every file using this code: "Contains code from RhinoWAF by 1rhino2 - <https://github.com/1rhino2/RhinoWAF - AGPL-3.0 License"
 
 For commercial/proprietary use without AGPL requirements, contact: 1rhino2 on discord
