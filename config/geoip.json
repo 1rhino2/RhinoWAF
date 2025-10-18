@@ -1,0 +1,22 @@
+[
+  {
+    "cidr": "127.0.0.0/8",
+    "country_code": "ZZ",
+    "country_name": "Localhost"
+  },
+  {
+    "cidr": "10.0.0.0/8",
+    "country_code": "ZZ",
+    "country_name": "Private"
+  },
+  {
+    "cidr": "172.16.0.0/12",
+    "country_code": "ZZ",
+    "country_name": "Private"
+  },
+  {
+    "cidr": "192.168.0.0/16",
+    "country_code": "ZZ",
+    "country_name": "Private"
+  }
+]

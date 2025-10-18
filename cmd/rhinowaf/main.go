@@ -2,14 +2,26 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"rhinowaf/handlers"
 	"rhinowaf/waf"
 	"rhinowaf/waf/ddos"
+	"rhinowaf/waf/geo"
 )
 
 func main() {
 	ddos.InitLogger(nil)
+
+	// Initialize IP manager with advanced rules
+	if err := ddos.InitIPManager("./config/ip_rules.json", true); err != nil {
+		log.Printf("Warning: Failed to init IP manager: %v", err)
+	}
+
+	// Load GeoIP database
+	if err := geo.LoadGeoDatabase("./config/geoip.json"); err != nil {
+		log.Printf("Warning: Failed to load GeoIP database: %v", err)
+	}
 
 	http.HandleFunc("/", waf.AdaptiveProtect(handlers.Home))
 	http.HandleFunc("/login", waf.AdaptiveProtect(handlers.Login))

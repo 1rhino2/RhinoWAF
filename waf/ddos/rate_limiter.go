@@ -3,12 +3,12 @@ package ddos
 import (
 	"net"
 	"net/http"
+	"rhinowaf/waf/geo"
 	"strings"
 )
 
 // AllowL7 checks if an IP can make HTTP requests
 func AllowL7(ip string) bool {
-	// Check IP management rules first (highest priority)
 	ipMgr := GetIPManager()
 
 	// Whitelisted IPs bypass all checks
@@ -20,6 +20,23 @@ func AllowL7(ip string) bool {
 	if ipMgr.IsBanned(ip) {
 		LogReputationBlock(ip, tracker.GetOrCreate(ip))
 		return false
+	}
+
+	// Check geolocation rules
+	countryCode := geo.GetCountryCode(ip)
+	geoAction := ipMgr.CheckGeoAccess(countryCode)
+	if geoAction == "block" {
+		LogGeoBlock(ip, countryCode)
+		return false
+	}
+
+	// Check if IP is throttled
+	if throttled, percent := ipMgr.IsThrottled(ip); throttled {
+		entry := tracker.GetOrCreate(ip)
+		adjustedLimit := (cfg.Layer7Limit * (100 - percent)) / 100
+		if len(entry.Requests) > adjustedLimit*cfg.RateWindowSec {
+			return false
+		}
 	}
 
 	// Check global limits first (distributed DDoS protection)
