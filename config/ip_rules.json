@@ -1,7 +1,40 @@
 {
-  "version": "1.0",
-  "last_updated": "",
+  "version": "2.0",
+  "last_modified": "2025-10-18T00:00:00Z",
   "banned_ips": [],
   "whitelisted_ips": [],
-  "monitored_ips": []
+  "monitored_ips": [],
+  "challenged_ips": [],
+  "throttled_ips": [],
+  "geo_rules": [
+    {
+      "country_code": "CN",
+      "action": "challenge",
+      "reason": "High risk country - require verification",
+      "created_at": "2025-10-18T00:00:00Z",
+      "throttle_percent": 50
+    },
+    {
+      "country_code": "RU",
+      "action": "throttle",
+      "reason": "Moderate risk - reduced rate limits",
+      "created_at": "2025-10-18T00:00:00Z",
+      "throttle_percent": 60
+    }
+  ],
+  "asn_rules": [],
+  "global_rules": {
+    "default_action": "allow",
+    "block_proxies": false,
+    "block_tor": false,
+    "block_hosting": false,
+    "blocked_countries": [],
+    "allowed_countries": [],
+    "require_auth_countries": [],
+    "challenge_countries": [],
+    "max_requests_per_ip": 0,
+    "max_connections_per_ip": 0,
+    "block_empty_user_agent": false,
+    "block_suspicious_ua": false
+  }
 }
