@@ -52,14 +52,14 @@ func init() {
 	go tracker.cleanupLoop()
 }
 
-// GetOrCreate grabs an existing entry or makes a fresh one
+// GetOrCreate returns existing entry or creates new one
 func (t *IPTracker) GetOrCreate(ip string) *IPEntry {
 	t.mu.RLock()
 	entry, exists := t.entries[ip]
 	t.mu.RUnlock()
 
 	if exists {
-		entry.LastSeen = nowUnix()
+		entry.LastSeen = time.Now().Unix()
 		return entry
 	}
 
@@ -67,11 +67,11 @@ func (t *IPTracker) GetOrCreate(ip string) *IPEntry {
 	// Double check after acquiring write lock
 	if entry, exists = t.entries[ip]; exists {
 		t.mu.Unlock()
-		entry.LastSeen = nowUnix()
+		entry.LastSeen = time.Now().Unix()
 		return entry
 	}
 
-	now := nowUnix()
+	now := time.Now().Unix()
 	entry = &IPEntry{
 		Requests:         make([]int64, 0, cfg.Layer7Limit),
 		Connections:      make([]int64, 0, cfg.Layer4Limit),
@@ -94,15 +94,14 @@ func (t *IPTracker) GetOrCreate(ip string) *IPEntry {
 // IsBlocked checks if an IP is currently blocked
 func (t *IPTracker) IsBlocked(ip string) bool {
 	entry := t.GetOrCreate(ip)
-	now := nowUnix()
+	now := time.Now().Unix()
 
 	if entry.BlockedUntil > now {
 		return true
 	}
 
-	// Reputation-based blocking for repeat offenders
 	if entry.Reputation <= cfg.ReputationThreshold {
-		entry.BlockedUntil = now + int64(cfg.BlockDurationSec*2) // Double block time
+		entry.BlockedUntil = now + int64(cfg.BlockDurationSec*2)
 		entry.ViolationCount++
 		LogReputationBlock(ip, entry) // Log reputation-based block
 		return true
@@ -114,9 +113,7 @@ func (t *IPTracker) IsBlocked(ip string) bool {
 // RecordRequest logs a new request for rate limiting
 func (t *IPTracker) RecordRequest(ip string) {
 	entry := t.GetOrCreate(ip)
-	now := nowUnix()
-
-	// Sliding window: keep only recent requests
+	now := time.Now().Unix()
 	var filtered []int64
 	for _, ts := range entry.Requests {
 		if ts > now-int64(cfg.RateWindowSec) {
@@ -130,7 +127,7 @@ func (t *IPTracker) RecordRequest(ip string) {
 // RecordConnection logs a new connection for L4 tracking
 func (t *IPTracker) RecordConnection(ip string) {
 	entry := t.GetOrCreate(ip)
-	now := nowUnix()
+	now := time.Now().Unix()
 
 	var filtered []int64
 	for _, ts := range entry.Connections {
@@ -143,20 +140,18 @@ func (t *IPTracker) RecordConnection(ip string) {
 }
 
 // CheckRateLimit returns true if IP is within limits
+// CheckRateLimit returns true if IP is within limits
 func (t *IPTracker) CheckRateLimit(ip string, layer7 bool) bool {
 	entry := t.GetOrCreate(ip)
-	now := nowUnix()
+	now := time.Now().Unix()
 
 	if layer7 {
 		reqs := len(entry.Requests)
 		limit := cfg.Layer7Limit * cfg.RateWindowSec
 
-		// Burst detection: way too many requests at once
 		if reqs > cfg.BurstLimit {
 			entry.BlockedUntil = now + int64(cfg.BlockDurationSec)
-			entry.Reputation -= 10 // Heavy penalty
-			entry.ViolationCount++
-			LogBurstAttack(ip, entry, reqs) // Log burst attack
+			entry.Reputation -= 10
 			return false
 		}
 
@@ -168,7 +163,6 @@ func (t *IPTracker) CheckRateLimit(ip string, layer7 bool) bool {
 			return false
 		}
 
-		// Good behavior improves reputation slowly
 		if reqs < limit/2 && entry.Reputation < 100 {
 			entry.Reputation++
 		}
@@ -176,7 +170,6 @@ func (t *IPTracker) CheckRateLimit(ip string, layer7 bool) bool {
 		return true
 	}
 
-	// Layer 4 check
 	conns := len(entry.Connections)
 	limit := cfg.Layer4Limit * cfg.RateWindowSec
 
@@ -203,14 +196,14 @@ func (t *IPTracker) CheckRateLimit(ip string, layer7 bool) bool {
 	return true
 }
 
-// GetStats returns current tracking stats (for monitoring/debugging)
+// GetStats returns current tracking stats
 func (t *IPTracker) GetStats() map[string]interface{} {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	blocked := 0
 	tracked := len(t.entries)
-	now := nowUnix()
+	now := time.Now().Unix()
 
 	for _, entry := range t.entries {
 		if entry.BlockedUntil > now {
@@ -225,7 +218,6 @@ func (t *IPTracker) GetStats() map[string]interface{} {
 	}
 }
 
-// cleanupLoop runs periodically to free memory from stale IPs
 func (t *IPTracker) cleanupLoop() {
 	ticker := time.NewTicker(time.Duration(cfg.CleanupIntervalSec) * time.Second)
 	defer ticker.Stop()
@@ -235,12 +227,11 @@ func (t *IPTracker) cleanupLoop() {
 	}
 }
 
-// cleanup removes old entries to prevent memory leaks
 func (t *IPTracker) cleanup() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	now := nowUnix()
+	now := time.Now().Unix()
 	staleThreshold := int64(cfg.BlockDurationSec * 3) // Keep for 3x block duration
 	maxConnTime := int64(cfg.SlowLorisMaxConnTime)
 
@@ -268,7 +259,7 @@ func (t *IPTracker) ResetIP(ip string) {
 	delete(t.entries, ip)
 }
 
-// GetIPInfo returns detailed info about an IP (for admin dashboards)
+// GetIPInfo returns detailed info about an IP
 func (t *IPTracker) GetIPInfo(ip string) map[string]interface{} {
 	t.mu.RLock()
 	entry, exists := t.entries[ip]
@@ -278,7 +269,7 @@ func (t *IPTracker) GetIPInfo(ip string) map[string]interface{} {
 		return map[string]interface{}{"exists": false}
 	}
 
-	now := nowUnix()
+	now := time.Now().Unix()
 	return map[string]interface{}{
 		"exists":             true,
 		"reputation":         entry.Reputation,
@@ -294,15 +285,13 @@ func (t *IPTracker) GetIPInfo(ip string) map[string]interface{} {
 	}
 }
 
-// StartConnection tracks when a connection starts (Slowloris protection)
+// StartConnection tracks when a connection starts
 func (t *IPTracker) StartConnection(ip string, connID string) bool {
 	entry := t.GetOrCreate(ip)
-	now := nowUnix()
-
-	// Check if IP has too many active slow connections
+	now := time.Now().Unix()
 	if len(entry.ActiveConns) >= cfg.SlowLorisMaxConnsPerIP {
 		entry.BlockedUntil = now + int64(cfg.BlockDurationSec)
-		entry.Reputation -= 8 // Penalty for Slowloris attempt
+		entry.Reputation -= 8
 		entry.ViolationCount++
 		entry.SlowConnWarnings++
 		return false
@@ -331,10 +320,10 @@ func (t *IPTracker) EndConnection(ip string, connID string) {
 	delete(entry.ActiveConns, connID)
 }
 
-// CheckSlowConnections detects Slowloris attacks (connections open too long)
+// CheckSlowConnections detects Slowloris attacks
 func (t *IPTracker) CheckSlowConnections(ip string) bool {
 	entry := t.GetOrCreate(ip)
-	now := nowUnix()
+	now := time.Now().Unix()
 	maxTime := int64(cfg.SlowLorisMaxConnTime)
 	minBytesPerSec := int64(cfg.SlowLorisMinBytesPerSec)
 
@@ -344,7 +333,6 @@ func (t *IPTracker) CheckSlowConnections(ip string) bool {
 	for connID, connInfo := range entry.ActiveConns {
 		connAge := now - connInfo.StartTime
 
-		// Check if connection is too old
 		if connAge > maxTime {
 			staleConns++
 			connInfo.IsSlowLoris = true
@@ -352,7 +340,6 @@ func (t *IPTracker) CheckSlowConnections(ip string) bool {
 			continue
 		}
 
-		// Check if connection is sending data too slowly
 		if connAge > 0 {
 			bytesPerSec := connInfo.BytesReceived / connAge
 			if bytesPerSec < minBytesPerSec && connAge > 5 {
@@ -361,7 +348,6 @@ func (t *IPTracker) CheckSlowConnections(ip string) bool {
 			}
 		}
 
-		// Check if headers are taking too long
 		if !connInfo.HeaderComplete && connAge > int64(cfg.SlowLorisHeaderTimeout) {
 			slowConns++
 			connInfo.IsSlowLoris = true
@@ -370,15 +356,11 @@ func (t *IPTracker) CheckSlowConnections(ip string) bool {
 
 	totalSlowConns := staleConns + slowConns
 
-	// If we found slow/stale connections, penalize the IP
 	if totalSlowConns > 0 {
-		entry.Reputation -= (totalSlowConns * 3) // -3 per slow connection
+		entry.Reputation -= (totalSlowConns * 3)
 		entry.SlowConnWarnings += totalSlowConns
 
-		// Log Slowloris attack detection
 		LogSlowlorisAttack(ip, entry, totalSlowConns)
-
-		// Block if too many slow connections
 		if totalSlowConns >= cfg.SlowLorisMaxConnsPerIP/2 {
 			entry.BlockedUntil = now + int64(cfg.BlockDurationSec)
 			entry.ViolationCount++
@@ -389,12 +371,12 @@ func (t *IPTracker) CheckSlowConnections(ip string) bool {
 	return true
 }
 
-// CleanupStaleConnections removes connections that are too old (called periodically)
+// CleanupStaleConnections removes connections that are too old
 func (t *IPTracker) CleanupStaleConnections() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	now := nowUnix()
+	now := time.Now().Unix()
 	maxTime := int64(cfg.SlowLorisMaxConnTime)
 
 	for _, entry := range t.entries {
@@ -406,7 +388,7 @@ func (t *IPTracker) CleanupStaleConnections() {
 	}
 }
 
-// UpdateConnectionActivity updates bytes received for a connection (prevents false Slowloris detection)
+// UpdateConnectionActivity updates bytes received for a connection
 func (t *IPTracker) UpdateConnectionActivity(ip string, connID string, bytes int64) {
 	t.mu.RLock()
 	entry, exists := t.entries[ip]
@@ -417,10 +399,10 @@ func (t *IPTracker) UpdateConnectionActivity(ip string, connID string, bytes int
 	}
 
 	if connInfo, ok := entry.ActiveConns[connID]; ok {
-		connInfo.LastActivity = nowUnix()
+		connInfo.LastActivity = time.Now().Unix()
 		connInfo.BytesReceived += bytes
 		entry.BytesSent += bytes
-		entry.LastByteTime = nowUnix()
+		entry.LastByteTime = time.Now().Unix()
 	}
 }
 

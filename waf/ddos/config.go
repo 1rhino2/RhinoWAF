@@ -1,7 +1,5 @@
 package ddos
 
-import "time"
-
 // Config holds all the DDoS protection settings
 type Config struct {
 	RateWindowSec       int
@@ -105,7 +103,4 @@ func GetConfig() *Config {
 	return cfg
 }
 
-// Helper for consistent time handling
-func nowUnix() int64 {
-	return time.Now().Unix()
-}
+//

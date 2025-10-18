@@ -23,5 +23,3 @@ func Echo(w http.ResponseWriter, r *http.Request) {
 func Flood(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Flood endpoint.")
 }
-
-// Skidders deserve the flogging posthaste!
