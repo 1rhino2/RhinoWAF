@@ -390,6 +390,26 @@ func LogReputationBlock(ip string, entry *IPEntry) {
 	logger.logEvent(event)
 }
 
+// LogGeoBlock logs when an IP is blocked due to geolocation
+func LogGeoBlock(ip, countryCode string) {
+	logger := GetLogger()
+	if !logger.enabled {
+		return
+	}
+
+	event := map[string]interface{}{
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"event_type":   "geo_block",
+		"ip":           ip,
+		"country_code": countryCode,
+		"severity":     "medium",
+		"message":      fmt.Sprintf("IP blocked due to geolocation rule: %s", countryCode),
+		"tags":         []string{"geoblocking", "access_control"},
+	}
+
+	logger.writeJSONBuffered(event)
+}
+
 // LogDistributedAttack logs when a distributed DDoS attack is detected
 func LogDistributedAttack() {
 	logger := GetLogger()
