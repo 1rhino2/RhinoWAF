@@ -46,7 +46,7 @@ func init() {
 // RecordGlobalRequest tracks a request in global statistics
 func (gt *GlobalTracker) RecordGlobalRequest(ip string) bool {
 	atomic.AddInt64(&gt.totalRequests, 1)
-	now := nowUnix()
+	now := time.Now().Unix()
 
 	gt.mu.Lock()
 	defer gt.mu.Unlock()
@@ -83,7 +83,7 @@ func (gt *GlobalTracker) RecordGlobalRequest(ip string) bool {
 // RecordGlobalConnection tracks a connection in global statistics
 func (gt *GlobalTracker) RecordGlobalConnection(ip string) bool {
 	atomic.AddInt64(&gt.totalConnections, 1)
-	now := nowUnix()
+	now := time.Now().Unix()
 
 	gt.mu.Lock()
 	defer gt.mu.Unlock()
@@ -117,7 +117,7 @@ func (gt *GlobalTracker) MarkSuspicious(ip string) {
 	gt.mu.Lock()
 	defer gt.mu.Unlock()
 
-	now := nowUnix()
+	now := time.Now().Unix()
 	if _, exists := gt.suspiciousIPs[ip]; !exists {
 		gt.suspiciousIPs[ip] = now
 	}
@@ -134,7 +134,7 @@ func (gt *GlobalTracker) triggerAdaptiveThrottling() {
 		return
 	}
 
-	now := nowUnix()
+	now := time.Now().Unix()
 
 	if !gt.isUnderAttack {
 		gt.isUnderAttack = true
@@ -212,7 +212,7 @@ func (gt *GlobalTracker) monitorLoop() {
 	for range ticker.C {
 		gt.mu.Lock()
 
-		now := nowUnix()
+		now := time.Now().Unix()
 
 		// Auto-recover from attack mode after 5 minutes of normal traffic
 		if gt.isUnderAttack {
