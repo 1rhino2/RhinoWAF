@@ -1,5 +1,9 @@
 # RhinoWAF
 
+# WARNING, AFTER RECENT CONDUCTED TESTS RHINOWAF IS NOT TO BE USED IN A PRODUCTION ENVIRONMENT, WE ARE WORKING HARD TO FIX THE ISSUE. THANK YOU.
+### The developers do not provide any warranty or assume any liability for loss, damage, or downtime resulting from its use. Use at your own risk. RhinoWAF is provided “as is” without any express or implied warranties.
+
+
 **Version:** 2.4.1
 **Status:** Request ID Tracking Added
 **Last Updated:** October 30, 2025
