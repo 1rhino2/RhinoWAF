@@ -1,8 +1,10 @@
-# RhinoWAF
+﻿# RhinoWAF
 
-# WARNING, AFTER RECENT CONDUCTED TESTS RHINOWAF IS NOT TO BE USED IN A PRODUCTION ENVIRONMENT, WE ARE WORKING HARD TO FIX THE ISSUE. THANK YOU.
-### The developers do not provide any warranty or assume any liability for loss, damage, or downtime resulting from its use. Use at your own risk. RhinoWAF is provided “as is” without any express or implied warranties.
+## Production Notice
 
+Recent benchmark testing achieved **Grade B performance** with 87.67% attack detection and 100% blocking of critical threats (SQL injection, XSS, credential stuffing). However, bot detection allows some modern API clients (55% detection rate) to prevent false positives on legitimate automation.
+
+The developers provide this software "as is" without warranty. Users assume all risks including potential loss, damage, or downtime. See benchmark results below for detailed test data.
 
 **Version:** 2.4.1
 **Status:** Request ID Tracking Added
@@ -193,10 +195,10 @@ go build -o rhinowaf ./cmd/rhinowaf
 **Expected startup output:**
 
 ```text
-╔════════════════════════════════════════════════════════════╗
-║                     RhinoWAF v2.4                          ║
-║              Production Web Application Firewall            ║
-╚════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘                     RhinoWAF v2.4                          â•‘
+â•‘              Production Web Application Firewall            â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Security Features:
    HTTP Request Smuggling Detection (ACTIVE)
@@ -210,13 +212,13 @@ go build -o rhinowaf ./cmd/rhinowaf
    Hot-Reload Configuration (Auto & Manual)
 
  Status:
-  • WAF Listening: http://localhost:8080
-  • Metrics Endpoint: http://localhost:8080/metrics
-  • Reload Endpoint: POST http://localhost:8080/reload
-  • Auto-Reload: Watching config files
-  • Manual Reload: kill -SIGHUP <pid>
-  • Attack Logs: ./logs/ddos.log
-  • Backend Proxy: http://localhost:9000
+  â€¢ WAF Listening: http://localhost:8080
+  â€¢ Metrics Endpoint: http://localhost:8080/metrics
+  â€¢ Reload Endpoint: POST http://localhost:8080/reload
+  â€¢ Auto-Reload: Watching config files
+  â€¢ Manual Reload: kill -SIGHUP <pid>
+  â€¢ Attack Logs: ./logs/ddos.log
+  â€¢ Backend Proxy: http://localhost:9000
 
 Ready.
 ```
@@ -383,7 +385,7 @@ export TURNSTILE_SECRET="your-secret"
 ```go
 // Challenge system is ENABLED by default in main.go
 challengeConfig := challenge.Config{
-    Enabled:         true,  // ✓ Production default
+    Enabled:         true,  // âœ“ Production default
     DefaultType:     challenge.TypeJavaScript,
     Difficulty:      5,  // For proof-of-work (1-6)
     WhitelistPaths:  []string{"/challenge/"},
@@ -400,7 +402,7 @@ challengeConfig := challenge.Config{
 - `TypeTurnstile`: Cloudflare's invisible challenge (requires API keys)
 
 **How It Works:**
-1. Request arrives without valid session → Challenge page shown
+1. Request arrives without valid session â†’ Challenge page shown
 2. Client completes challenge (JS/POW/CAPTCHA)
 3. Verification POST to `/challenge/verify`
 4. Cookie set with session token (1-hour TTL)
@@ -443,7 +445,7 @@ challengeConfig := challenge.Config{
 ```
 
 ```bash
-# Get free keys from Cloudflare Dashboard → Turnstile
+# Get free keys from Cloudflare Dashboard â†’ Turnstile
 export TURNSTILE_SITE_KEY="1x00000000000000000000AA"
 export TURNSTILE_SECRET="1x0000000000000000000000000000000AA"
 ```
@@ -486,7 +488,7 @@ Fingerprinting is **ENABLED by default** to detect bot networks and sophisticate
 ```go
 // Default production configuration in main.go
 fingerprintConfig := fingerprint.Config{
-    Enabled:              true,  // ✓ Production default
+    Enabled:              true,  // âœ“ Production default
     MaxIPsPerFingerprint: 5,     // Max IPs per fingerprint (bot network detection)
     MaxAgeForReuse:       24 * time.Hour,
     SuspiciousThreshold:  3,     // Flag as suspicious when 3+ IPs share fingerprint
@@ -504,10 +506,10 @@ fingerprintConfig := fingerprint.Config{
 - Headless browsers (Puppeteer, Selenium) missing canvas/WebGL
 
 **How It Works:**
-1. First visit → 1-2 second "Security Verification" page
+1. First visit â†’ 1-2 second "Security Verification" page
 2. JavaScript collects: Canvas signature, WebGL renderer, fonts, screen res, CPU cores
-3. SHA-256 hash created from all data → cookie set
-4. Returning visits → instant (cookie present)
+3. SHA-256 hash created from all data â†’ cookie set
+4. Returning visits â†’ instant (cookie present)
 
 **Endpoints:**
 - `POST /fingerprint/collect` - Receives fingerprint data from client
@@ -657,8 +659,8 @@ vim config/ip_rules.json
 
 Logs will show:
 ```
-✓ Detected change in config file: config/ip_rules.json
-✓ Successfully reloaded IP rules
+âœ“ Detected change in config file: config/ip_rules.json
+âœ“ Successfully reloaded IP rules
 ```
 
 ### Manual Reload via HTTP Endpoint
@@ -695,9 +697,9 @@ kill -SIGHUP <pid>
 Logs will show:
 ```
 Received SIGHUP, reloading configurations...
-✓ Successfully reloaded IP rules
-✓ Successfully reloaded GeoIP database
-✓ All configurations reloaded successfully
+âœ“ Successfully reloaded IP rules
+âœ“ Successfully reloaded GeoIP database
+âœ“ All configurations reloaded successfully
 ```
 
 ### Configuration Validation
@@ -893,9 +895,9 @@ Tested against OWASP WAF Standards v4.0 with 15 realistic scenarios covering 1,5
 
 ### Overall Performance - Grade B (Good)
 
-- **True Positive Rate (TPR):** 87.67% ⚠ Acceptable
-- **False Positive Rate (FPR):** 2.60% ✓ Good
-- **True Negative Rate (TNR):** 97.40% ✓ Excellent
+- **True Positive Rate (TPR):** 87.67% âš  Acceptable
+- **False Positive Rate (FPR):** 2.60% âœ“ Good
+- **True Negative Rate (TNR):** 97.40% âœ“ Excellent
 - **False Negative Rate (FNR):** 12.33%
 
 ### Attack Detection (100% on Critical Threats)
@@ -927,9 +929,9 @@ Tested against OWASP WAF Standards v4.0 with 15 realistic scenarios covering 1,5
 
 ### Performance Metrics
 
-- **Mean Latency (Allowed):** 896µs ✓ Excellent
-- **Mean Latency (Blocked):** 358µs
-- **P50 Latency:** 506µs
+- **Mean Latency (Allowed):** 896Âµs âœ“ Excellent
+- **Mean Latency (Blocked):** 358Âµs
+- **P50 Latency:** 506Âµs
 - **P95 Latency:** 2.1ms
 - **P99 Latency:** 5.6ms
 - **Max Latency:** 26.2ms
@@ -967,144 +969,144 @@ RhinoWAF successfully blocks 100% of critical attacks (SQL injection, XSS, crede
 
 ### Released Versions
 
-#### **v2.4** — October 28, 2025
+#### **v2.4** â€” October 28, 2025
 *HTTP Request Smuggling Protection*
 
-- **Smuggling Detection Engine** — 17 violation types detecting CL.TE, TE.CL, TE.TE attacks
-- **Severity-based Blocking** — Configurable thresholds (1-5 severity scale), blocks 4+ by default
-- **Header Obfuscation Detection** — Catches whitespace, hex encoding, control characters in headers
-- **Protocol Violation Checks** — Detects invalid Content-Length/Transfer-Encoding combinations
-- **Prometheus Metrics** — `rhinowaf_smuggling_attempts_blocked_total` and `rhinowaf_smuggling_violations_detected_total`
-- **Strict Mode** — Production-ready configuration with comprehensive request validation
+- **Smuggling Detection Engine** â€” 17 violation types detecting CL.TE, TE.CL, TE.TE attacks
+- **Severity-based Blocking** â€” Configurable thresholds (1-5 severity scale), blocks 4+ by default
+- **Header Obfuscation Detection** â€” Catches whitespace, hex encoding, control characters in headers
+- **Protocol Violation Checks** â€” Detects invalid Content-Length/Transfer-Encoding combinations
+- **Prometheus Metrics** â€” `rhinowaf_smuggling_attempts_blocked_total` and `rhinowaf_smuggling_violations_detected_total`
+- **Strict Mode** â€” Production-ready configuration with comprehensive request validation
 
 See [docs/SMUGGLING_DETECTION.md](docs/SMUGGLING_DETECTION.md) for technical documentation and [docs/CHANGELOGS/V2.4_FEATURES.md](docs/CHANGELOGS/V2.4_FEATURES.md) for detailed feature information.
 
-#### **v2.3** — October 24, 2025
+#### **v2.3** â€” October 24, 2025
 *Performance & Observability Release*
 
--  **Prometheus Metrics Endpoint** — 20+ metrics at `/metrics` for monitoring (requests, blocks, challenges, fingerprints, latency)
--  **Hot-Reload Configuration** — Update IP rules/GeoIP without restart (auto file-watch + manual triggers)
--  **HTTP Reload API** — `POST /reload` endpoint for programmatic configuration updates
--  **SIGHUP Signal Handler** — Manual reload via `kill -SIGHUP` for DevOps workflows
--  **Configuration Validation** — JSON validation with safe rollback on reload errors
--  **Debounced File Watching** — 2-second debounce prevents reload storms during batch edits
+-  **Prometheus Metrics Endpoint** â€” 20+ metrics at `/metrics` for monitoring (requests, blocks, challenges, fingerprints, latency)
+-  **Hot-Reload Configuration** â€” Update IP rules/GeoIP without restart (auto file-watch + manual triggers)
+-  **HTTP Reload API** â€” `POST /reload` endpoint for programmatic configuration updates
+-  **SIGHUP Signal Handler** â€” Manual reload via `kill -SIGHUP` for DevOps workflows
+-  **Configuration Validation** â€” JSON validation with safe rollback on reload errors
+-  **Debounced File Watching** â€” 2-second debounce prevents reload storms during batch edits
 
 See [docs/CHANGELOGS/V2.3_FEATURES.md](docs/CHANGELOGS/V2.3_FEATURES.md) for detailed feature documentation.
 
-#### **v2.2** — October 24, 2025
+#### **v2.2** â€” October 24, 2025
 *Maintenance & Security Release*
 
--  **Constant-time token comparison** — Prevents timing attacks on token validation
--  **Rate limiting on `/fingerprint/collect`** — Prevents fingerprint collection DoS
--  **Improved CAPTCHA error messages** — Better user experience on failed challenges
--  **Better malformed header handling** — Prevents header injection attacks
+-  **Constant-time token comparison** â€” Prevents timing attacks on token validation
+-  **Rate limiting on `/fingerprint/collect`** â€” Prevents fingerprint collection DoS
+-  **Improved CAPTCHA error messages** â€” Better user experience on failed challenges
+-  **Better malformed header handling** â€” Prevents header injection attacks
 
-#### **v2.1** — October 22, 2025
+#### **v2.1** â€” October 22, 2025
 *Security Hardening*
 
--  **Secure cookie handling with auto-detect HTTPS** — Defends against MITM attacks
--  **CAPTCHA secret validation warnings** — Prevents silent misconfigurations
--  **IP spoofing protection via trusted proxy validation** — Blocks X-Forwarded-For bypass
--  **New `waf/security` package** — X-Forwarded-For validation against trusted proxy list
+-  **Secure cookie handling with auto-detect HTTPS** â€” Defends against MITM attacks
+-  **CAPTCHA secret validation warnings** â€” Prevents silent misconfigurations
+-  **IP spoofing protection via trusted proxy validation** â€” Blocks X-Forwarded-For bypass
+-  **New `waf/security` package** â€” X-Forwarded-For validation against trusted proxy list
 
 ---
 
 ### Recent Releases
 
-#### **v2.3.2** — October 26, 2025
+#### **v2.3.2** â€” October 26, 2025
 *Health Monitoring*
 
-- **Health Check Endpoint** — `/health` endpoint with status, uptime, memory, and system info (improves observability)
+- **Health Check Endpoint** â€” `/health` endpoint with status, uptime, memory, and system info (improves observability)
 
-#### **v2.3.1** — October 26, 2025
+#### **v2.3.1** â€” October 26, 2025
 *Quality of Life Improvements*
 
-- **Custom Error Pages** — Branded HTML templates with minimal CSS for better UX (defends against information leakage)
-- **Webhook Notifications** — Attack alerts to Slack/Discord/Teams with severity filtering (improves incident response)
-- **IP Reputation APIs** — AbuseIPDB and IPQualityScore integration with caching (defends against known bad actors)
-- **Connection Pooling** — HTTP transport optimization for backend proxy (improves performance)
-- **Log Rotation** — Automatic log rotation with compression and retention policies (prevents disk space issues)
-- **JWT/Session Rate Limiting** — Per-user rate limits separate from IP-based limits (defends against distributed attacks)
+- **Custom Error Pages** â€” Branded HTML templates with minimal CSS for better UX (defends against information leakage)
+- **Webhook Notifications** â€” Attack alerts to Slack/Discord/Teams with severity filtering (improves incident response)
+- **IP Reputation APIs** â€” AbuseIPDB and IPQualityScore integration with caching (defends against known bad actors)
+- **Connection Pooling** â€” HTTP transport optimization for backend proxy (improves performance)
+- **Log Rotation** â€” Automatic log rotation with compression and retention policies (prevents disk space issues)
+- **JWT/Session Rate Limiting** â€” Per-user rate limits separate from IP-based limits (defends against distributed attacks)
 
-#### **v2.3** — October 24, 2025
+#### **v2.3** â€” October 24, 2025
 *Performance & Observability Release*
 
-- **Prometheus Metrics Endpoint** — 20+ metrics at `/metrics` for monitoring (requests, blocks, challenges, fingerprints, latency)
-- **Hot-Reload Configuration** — Update IP rules/GeoIP without restart (auto file-watch + manual triggers)
-- **HTTP Reload API** — `POST /reload` endpoint for programmatic configuration updates
-- **SIGHUP Signal Handler** — Manual reload via `kill -SIGHUP` for DevOps workflows
-- **Configuration Validation** — JSON validation with safe rollback on reload errors
-- **Debounced File Watching** — 2-second debounce prevents reload storms during batch edits
+- **Prometheus Metrics Endpoint** â€” 20+ metrics at `/metrics` for monitoring (requests, blocks, challenges, fingerprints, latency)
+- **Hot-Reload Configuration** â€” Update IP rules/GeoIP without restart (auto file-watch + manual triggers)
+- **HTTP Reload API** â€” `POST /reload` endpoint for programmatic configuration updates
+- **SIGHUP Signal Handler** â€” Manual reload via `kill -SIGHUP` for DevOps workflows
+- **Configuration Validation** â€” JSON validation with safe rollback on reload errors
+- **Debounced File Watching** â€” 2-second debounce prevents reload storms during batch edits
 
 See [docs/CHANGELOGS/V2.3_FEATURES.md](docs/CHANGELOGS/V2.3_FEATURES.md) for detailed feature documentation.
 
-#### **v2.2** — October 24, 2025
+#### **v2.2** â€” October 24, 2025
 *Maintenance & Security Release*
 
-- **Constant-time token comparison** — Prevents timing attacks on token validation
-- **Rate limiting on `/fingerprint/collect`** — Prevents fingerprint collection DoS
-- **Improved CAPTCHA error messages** — Better user experience on failed challenges
-- **Better malformed header handling** — Prevents header injection attacks
+- **Constant-time token comparison** â€” Prevents timing attacks on token validation
+- **Rate limiting on `/fingerprint/collect`** â€” Prevents fingerprint collection DoS
+- **Improved CAPTCHA error messages** â€” Better user experience on failed challenges
+- **Better malformed header handling** â€” Prevents header injection attacks
 
-#### **v2.1** — October 22, 2025
+#### **v2.1** â€” October 22, 2025
 *Security Hardening*
 
-- **Secure cookie handling with auto-detect HTTPS** — Defends against MITM attacks
-- **CAPTCHA secret validation warnings** — Prevents silent misconfigurations
-- **IP spoofing protection via trusted proxy validation** — Blocks X-Forwarded-For bypass
-- **New `waf/security` package** — X-Forwarded-For validation against trusted proxy list
+- **Secure cookie handling with auto-detect HTTPS** â€” Defends against MITM attacks
+- **CAPTCHA secret validation warnings** â€” Prevents silent misconfigurations
+- **IP spoofing protection via trusted proxy validation** â€” Blocks X-Forwarded-For bypass
+- **New `waf/security` package** â€” X-Forwarded-For validation against trusted proxy list
 
 ---
 
 ### Upcoming Releases
 
-#### **v2.5** — Advanced Rate Limiting & Analytics
+#### **v2.5** â€” Advanced Rate Limiting & Analytics
 
 Target: November 2025
 
 **Planned Features:**
 
-- **Advanced rate limiting algorithms** — Token bucket and sliding window implementations
-- **GraphQL query depth limiting** — Prevents DoS via deeply nested queries
-- **WebSocket security** — Rate limiting and payload inspection for WS connections
-- **Response header security** — Auto-inject CSP, HSTS, X-Frame-Options headers
-- **API schema validation** — OpenAPI/Swagger schema enforcement
-- **Session fingerprint binding** — Bind sessions to browser fingerprint
-- **Geo-velocity checking** — Flag impossible travel between requests
+- **Advanced rate limiting algorithms** â€” Token bucket and sliding window implementations
+- **GraphQL query depth limiting** â€” Prevents DoS via deeply nested queries
+- **WebSocket security** â€” Rate limiting and payload inspection for WS connections
+- **Response header security** â€” Auto-inject CSP, HSTS, X-Frame-Options headers
+- **API schema validation** â€” OpenAPI/Swagger schema enforcement
+- **Session fingerprint binding** â€” Bind sessions to browser fingerprint
+- **Geo-velocity checking** â€” Flag impossible travel between requests
 
-#### **v3.0** — Enterprise Features
+#### **v3.0** â€” Enterprise Features
 
 Target: Q1 2026
 
-- **Distributed rate limiting** — Redis backend for multi-server deployments
-- **Web UI dashboard** — Rule management and live monitoring interface
-- **Challenge history & reputation scoring** — Track and block repeat offenders
-- **Multi-server session synchronization** — Shared fingerprint/session store
-- **Machine learning anomaly detection** — Behavioral analysis for 0-day threats
-- **Custom Lua scripting** — Advanced rule customization engine
+- **Distributed rate limiting** â€” Redis backend for multi-server deployments
+- **Web UI dashboard** â€” Rule management and live monitoring interface
+- **Challenge history & reputation scoring** â€” Track and block repeat offenders
+- **Multi-server session synchronization** â€” Shared fingerprint/session store
+- **Machine learning anomaly detection** â€” Behavioral analysis for 0-day threats
+- **Custom Lua scripting** â€” Advanced rule customization engine
 
-#### **v2.4.1** — Refinements & Polish
+#### **v2.4.1** â€” Refinements & Polish
 
 Released: October 2025
 
 **Completed:**
 
--  **JWT token validation** — Token parsing and claims validation (waf/jwt/)
--  **OAuth2 integration** — OAuth2 flow handlers with major providers (Google, GitHub, Microsoft)
--  **HTTP/3 support** — QUIC protocol implementation with 0-RTT resumption
--  **Request body size limits per endpoint** — Per-path body size validation
--  **IPv6 full support** — Enhanced IP normalization and validation
--  **Custom error page templates** — Load custom HTML error templates
--  **Rate limit exemption lists** — Whitelist IPs, user agents, and paths
--  **Automatic IP ban after N violations** — Violation tracking with auto-ban
--  **URL rewrite rules** — Regex-based URL rewriting middleware
--  **Request/response header manipulation** — Add/remove/modify headers
--  **CORS policy enforcement** — Preflight handling and CORS headers
--  **Brotli compression** — High-efficiency compression support
--  **Cache control headers** — Per-path cache policy injection
--  **Conditional rate limits (time-based)** — Schedule-based rate limiting
--  **GeoIP accuracy improvements** — Cached CIDR matching
--  **Custom Prometheus label support** — Dynamic metric registration
+-  **JWT token validation** â€” Token parsing and claims validation (waf/jwt/)
+-  **OAuth2 integration** â€” OAuth2 flow handlers with major providers (Google, GitHub, Microsoft)
+-  **HTTP/3 support** â€” QUIC protocol implementation with 0-RTT resumption
+-  **Request body size limits per endpoint** â€” Per-path body size validation
+-  **IPv6 full support** â€” Enhanced IP normalization and validation
+-  **Custom error page templates** â€” Load custom HTML error templates
+-  **Rate limit exemption lists** â€” Whitelist IPs, user agents, and paths
+-  **Automatic IP ban after N violations** â€” Violation tracking with auto-ban
+-  **URL rewrite rules** â€” Regex-based URL rewriting middleware
+-  **Request/response header manipulation** â€” Add/remove/modify headers
+-  **CORS policy enforcement** â€” Preflight handling and CORS headers
+-  **Brotli compression** â€” High-efficiency compression support
+-  **Cache control headers** â€” Per-path cache policy injection
+-  **Conditional rate limits (time-based)** â€” Schedule-based rate limiting
+-  **GeoIP accuracy improvements** â€” Cached CIDR matching
+-  **Custom Prometheus label support** â€” Dynamic metric registration
 
 ---
 
