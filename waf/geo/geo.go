@@ -162,6 +162,10 @@ func (g *GeoIP) createDefaultDatabase(path string) error {
 		{CIDR: "10.0.0.0/8", CountryCode: "ZZ", CountryName: "Private"},
 		{CIDR: "172.16.0.0/12", CountryCode: "ZZ", CountryName: "Private"},
 		{CIDR: "192.168.0.0/16", CountryCode: "ZZ", CountryName: "Private"},
+		{CIDR: "::1/128", CountryCode: "ZZ", CountryName: "Localhost (IPv6)"},
+		{CIDR: "fc00::/7", CountryCode: "ZZ", CountryName: "Private (IPv6 ULA)"},
+		{CIDR: "fe80::/10", CountryCode: "ZZ", CountryName: "Private (IPv6 Link-Local)"},
+		{CIDR: "ff00::/8", CountryCode: "ZZ", CountryName: "Multicast (IPv6)"},
 	}
 
 	data, err := json.MarshalIndent(defaultRanges, "", "  ")

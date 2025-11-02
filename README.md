@@ -59,6 +59,7 @@ This project is developed collaboratively by a small team, allowing for rapid it
 ### **Core Protection**
 
 - **DDoS Protection**: Rate limiting, burst detection, Slowloris mitigation, reputation scoring
+- **IPv6 Support**: Full IPv6 and dual-stack support for all security features (v2.5+)
 - **Input Sanitization**: SQL injection, XSS, path traversal, command injection blocking
 - **HTTP Request Smuggling Detection**: CL.TE, TE.CL, TE.TE, header obfuscation, protocol violations
 - **IP Management**: 60+ per-IP control fields with priority-based rule matching

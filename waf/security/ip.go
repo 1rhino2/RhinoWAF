@@ -1,6 +1,7 @@
 package security
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -126,4 +127,87 @@ func IsIPv4(ip string) bool {
 
 func ValidateIP(ip string) bool {
 	return net.ParseIP(ip) != nil
+}
+
+// IPv6 subnet support
+func ParseIPWithSubnet(ipStr string) (net.IP, *net.IPNet, error) {
+	if strings.Contains(ipStr, "/") {
+		ip, ipnet, err := net.ParseCIDR(ipStr)
+		return ip, ipnet, err
+	}
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return nil, nil, fmt.Errorf("invalid IP address: %s", ipStr)
+	}
+	return ip, nil, nil
+}
+
+// IsIPv6LinkLocal checks if an IPv6 address is link-local (fe80::/10)
+func IsIPv6LinkLocal(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil || parsed.To4() != nil {
+		return false
+	}
+	return parsed.IsLinkLocalUnicast()
+}
+
+// IsIPv6UniqueLocal checks if an IPv6 address is unique local (fc00::/7)
+func IsIPv6UniqueLocal(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil || parsed.To4() != nil {
+		return false
+	}
+	p := parsed.To16()
+	return p != nil && (p[0]&0xfe) == 0xfc
+}
+
+// IsIPv6Loopback checks if address is IPv6 loopback (::1)
+func IsIPv6Loopback(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	return parsed.IsLoopback() && parsed.To4() == nil
+}
+
+// ExpandIPv6 expands an IPv6 address to full form
+func ExpandIPv6(ip string) string {
+	parsed := net.ParseIP(ip)
+	if parsed == nil || parsed.To4() != nil {
+		return ip
+	}
+	p := parsed.To16()
+	if p == nil {
+		return ip
+	}
+	return fmt.Sprintf("%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+		p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7],
+		p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15])
+}
+
+// IsPrivateIP checks if an IP (v4 or v6) is in a private range
+func IsPrivateIP(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+
+	if parsed.To4() != nil {
+		return parsed.IsPrivate() || parsed.IsLoopback()
+	}
+
+	// IPv6 private ranges
+	return IsIPv6UniqueLocal(ip) || IsIPv6LinkLocal(ip) || IsIPv6Loopback(ip)
+}
+
+// GetIPVersion returns 4, 6, or 0 for invalid
+func GetIPVersion(ip string) int {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return 0
+	}
+	if parsed.To4() != nil {
+		return 4
+	}
+	return 6
 }
