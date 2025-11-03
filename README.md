@@ -6,6 +6,8 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/1rhino2/RhinoWAF?style=social)](https://github.com/1rhino2/RhinoWAF)
 
+📚 **[View Full Documentation & Benchmarks](https://1rhino2.github.io/RhinoWAF/)** | [Features](https://1rhino2.github.io/RhinoWAF/features.html) | [Comparison](https://1rhino2.github.io/RhinoWAF/comparison.html)
+
 **Keywords**: web application firewall, ddos protection, rate limiting, bot detection, reverse proxy, api gateway security, nginx alternative, modsecurity alternative
 
 ## Production Notice
