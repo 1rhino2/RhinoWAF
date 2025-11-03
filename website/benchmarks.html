@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RhinoWAF Benchmarks - Performance and attack detection metrics">
+    <title>Benchmarks - RhinoWAF</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <div class="logo">RhinoWAF</div>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="features.html">Features</a></li>
+                    <li><a href="benchmarks.html">Benchmarks</a></li>
+                    <li><a href="docs.html">Docs</a></li>
+                    <li><a href="comparison.html">Compare</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF">GitHub</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <section class="page-header">
+        <div class="container">
+            <h1>Performance Benchmarks</h1>
+            <p>Tested on AMD Ryzen 5 3600X, 16GB RAM</p>
+        </div>
+    </section>
+
+    <section class="content">
+        <div class="container">
+            <h2>Attack Detection Results</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Attack Type</th>
+                        <th>Detection Rate</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>SQL Injection</td>
+                        <td>100%</td>
+                        <td>All attempts blocked</td>
+                    </tr>
+                    <tr>
+                        <td>XSS Attacks</td>
+                        <td>100%</td>
+                        <td>All attempts blocked</td>
+                    </tr>
+                    <tr>
+                        <td>Credential Stuffing</td>
+                        <td>100%</td>
+                        <td>All attempts blocked</td>
+                    </tr>
+                    <tr>
+                        <td>HTTP Smuggling</td>
+                        <td>100%</td>
+                        <td>17 violation types detected</td>
+                    </tr>
+                    <tr>
+                        <td>Bot Traffic</td>
+                        <td>55%</td>
+                        <td>Malicious bots blocked</td>
+                    </tr>
+                    <tr>
+                        <td>Overall</td>
+                        <td>87.67%</td>
+                        <td>Grade B</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Throughput Performance</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Max Requests/Second</td>
+                        <td>100,000+</td>
+                        <td>Single WAF instance</td>
+                    </tr>
+                    <tr>
+                        <td>Average Latency</td>
+                        <td>&lt;1ms</td>
+                        <td>WAF processing overhead</td>
+                    </tr>
+                    <tr>
+                        <td>Memory Usage</td>
+                        <td>50-100MB</td>
+                        <td>Typical workload</td>
+                    </tr>
+                    <tr>
+                        <td>False Positive Rate</td>
+                        <td>2.60%</td>
+                        <td>Legitimate requests flagged</td>
+                    </tr>
+                    <tr>
+                        <td>CPU Usage</td>
+                        <td>~5-10%</td>
+                        <td>During active traffic</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>IPv6 Operation Performance</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Operation</th>
+                        <th>Time (ns/op)</th>
+                        <th>Allocations</th>
+                        <th>Bytes/op</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>IsIPv6 Check</td>
+                        <td>43.98</td>
+                        <td>0</td>
+                        <td>0</td>
+                    </tr>
+                    <tr>
+                        <td>IP Normalization</td>
+                        <td>191.4</td>
+                        <td>1</td>
+                        <td>32</td>
+                    </tr>
+                    <tr>
+                        <td>Version Detection</td>
+                        <td>43.03</td>
+                        <td>0</td>
+                        <td>0</td>
+                    </tr>
+                    <tr>
+                        <td>CIDR Matching</td>
+                        <td>&lt;200</td>
+                        <td>1</td>
+                        <td>32</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Smuggling Detection Performance</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Detection Overhead</td>
+                        <td>&lt;0.5ms per request</td>
+                    </tr>
+                    <tr>
+                        <td>Memory Usage</td>
+                        <td>Minimal (pre-compiled regexes)</td>
+                    </tr>
+                    <tr>
+                        <td>CPU Impact</td>
+                        <td>Negligible</td>
+                    </tr>
+                    <tr>
+                        <td>Throughput Impact</td>
+                        <td>No measurable impact</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Challenge System Performance</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Challenge Type</th>
+                        <th>Solve Time</th>
+                        <th>Bot Block Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>JavaScript</td>
+                        <td>2 seconds</td>
+                        <td>~70%</td>
+                    </tr>
+                    <tr>
+                        <td>Proof-of-Work (diff 4)</td>
+                        <td>1-5 seconds</td>
+                        <td>~85%</td>
+                    </tr>
+                    <tr>
+                        <td>Proof-of-Work (diff 5)</td>
+                        <td>10-30 seconds</td>
+                        <td>~95%</td>
+                    </tr>
+                    <tr>
+                        <td>hCaptcha</td>
+                        <td>3-10 seconds</td>
+                        <td>~99%</td>
+                    </tr>
+                    <tr>
+                        <td>Turnstile</td>
+                        <td>~2 seconds</td>
+                        <td>~95%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Fingerprinting Performance</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>First Visit Overhead</td>
+                        <td>1-2 seconds (collection page)</td>
+                    </tr>
+                    <tr>
+                        <td>Subsequent Visits</td>
+                        <td>&lt;5ms (cookie validation)</td>
+                    </tr>
+                    <tr>
+                        <td>Memory per Fingerprint</td>
+                        <td>~1KB</td>
+                    </tr>
+                    <tr>
+                        <td>Bot Network Detection</td>
+                        <td>Real-time</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Test Environment</h2>
+            <div class="doc-section">
+                <h3>Hardware</h3>
+                <ul>
+                    <li>CPU: AMD Ryzen 5 3600X (6 cores, 12 threads)</li>
+                    <li>RAM: 16GB DDR4</li>
+                    <li>Storage: NVMe SSD</li>
+                </ul>
+
+                <h3>Software</h3>
+                <ul>
+                    <li>Go 1.21+</li>
+                    <li>Linux kernel 5.15+</li>
+                    <li>RhinoWAF v2.5</li>
+                </ul>
+
+                <h3>Test Methodology</h3>
+                <ul>
+                    <li>Load testing with Apache Bench and wrk</li>
+                    <li>Attack simulations with custom tools</li>
+                    <li>Real-world traffic patterns</li>
+                    <li>Concurrent connection testing</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>RhinoWAF - Open Source Web Application Firewall</p>
+            <p>Licensed under AGPL-3.0 | <a href="https://github.com/1rhino2/RhinoWAF">GitHub</a> | <a href="https://github.com/1rhino2/RhinoWAF/issues">Report Issues</a></p>
+        </div>
+    </footer>
+</body>
+</html>

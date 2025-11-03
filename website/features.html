@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RhinoWAF Features - DDoS protection, bot detection, attack prevention">
+    <title>Features - RhinoWAF</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <div class="logo">RhinoWAF</div>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="features.html">Features</a></li>
+                    <li><a href="benchmarks.html">Benchmarks</a></li>
+                    <li><a href="docs.html">Docs</a></li>
+                    <li><a href="comparison.html">Compare</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF">GitHub</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <section class="page-header">
+        <div class="container">
+            <h1>Features</h1>
+            <p>Comprehensive protection for web applications</p>
+        </div>
+    </section>
+
+    <section class="content">
+        <div class="container">
+            <div class="feature-detailed">
+                <h2>DDoS Protection (Layer 7)</h2>
+                <p>Rate limiting, Slowloris detection, burst protection, and adaptive throttling for application-layer attacks.</p>
+                <ul>
+                    <li>Per-IP rate limiting with configurable windows</li>
+                    <li>Burst detection and adaptive throttling</li>
+                    <li>Concurrent connection limits</li>
+                    <li>Slowloris and slow POST detection</li>
+                </ul>
+            </div>
+
+            <div class="feature-detailed">
+                <h2>Bot Detection & Fingerprinting</h2>
+                <p>Advanced browser fingerprinting to detect bot networks and automated attacks.</p>
+                <ul>
+                    <li>Canvas fingerprinting for unique browser signatures</li>
+                    <li>WebGL fingerprinting (GPU vendor and renderer detection)</li>
+                    <li>Font detection via canvas measurement</li>
+                    <li>Hardware characteristics (CPU cores, memory, screen)</li>
+                    <li>Bot network detection when multiple IPs share fingerprints</li>
+                    <li>Headless browser detection (Puppeteer, Selenium, Playwright)</li>
+                </ul>
+            </div>
+
+            <div class="feature-detailed">
+                <h2>Challenge System</h2>
+                <p>Multiple verification methods to ensure legitimate users.</p>
+                <ul>
+                    <li>JavaScript Challenge - Basic bot filtering</li>
+                    <li>Proof-of-Work - Computational puzzle to make attacks expensive</li>
+                    <li>hCaptcha - Privacy-focused CAPTCHA provider</li>
+                    <li>Cloudflare Turnstile - Invisible challenge with best UX</li>
+                </ul>
+            </div>
+
+            <div class="feature-detailed">
+                <h2>Attack Prevention</h2>
+                <p>Comprehensive protection against web application attacks.</p>
+                <ul>
+                    <li>SQL injection detection and blocking</li>
+                    <li>XSS (Cross-Site Scripting) prevention</li>
+                    <li>HTTP request smuggling detection (17 violation types)</li>
+                    <li>Credential stuffing protection</li>
+                    <li>Path traversal blocking</li>
+                    <li>Command injection prevention</li>
+                    <li>Input sanitization and validation</li>
+                </ul>
+            </div>
+
+            <div class="feature-detailed">
+                <h2>IP Management</h2>
+                <p>Advanced IP control with 119+ configuration fields.</p>
+                <ul>
+                    <li>Whitelist and blacklist management</li>
+                    <li>Time-based restrictions (business hours, specific days)</li>
+                    <li>Path and method controls (allow/block specific endpoints)</li>
+                    <li>GeoIP country blocking</li>
+                    <li>ASN-based filtering</li>
+                    <li>Request pattern matching (query params, headers, referers)</li>
+                    <li>Content controls (file types, sizes, content-types)</li>
+                    <li>Protocol requirements (HTTPS, TLS versions, HTTP/2)</li>
+                </ul>
+            </div>
+
+            <div class="feature-detailed">
+                <h2>IPv6 Support</h2>
+                <p>Full dual-stack support with IPv6-aware security features.</p>
+                <ul>
+                    <li>IPv6 address parsing and validation</li>
+                    <li>CIDR matching for IPv6 ranges</li>
+                    <li>Private IPv6 range detection (ULA, link-local, loopback)</li>
+                    <li>IPv6-aware rate limiting</li>
+                    <li>Dual-stack GeoIP lookups</li>
+                    <li>Performance: 43.98ns per IPv6 check</li>
+                </ul>
+            </div>
+
+            <div class="feature-detailed">
+                <h2>CSRF Protection</h2>
+                <p>Comprehensive Cross-Site Request Forgery protection.</p>
+                <ul>
+                    <li>Server-side token validation</li>
+                    <li>Double-submit cookie pattern (stateless)</li>
+                    <li>Configurable token TTL and cookie settings</li>
+                    <li>Per-endpoint exemptions</li>
+                </ul>
+            </div>
+
+            <div class="feature-detailed">
+                <h2>Simple Configuration</h2>
+                <p>JSON-based configuration with no complex rule syntax.</p>
+                <ul>
+                    <li>Human-readable JSON format</li>
+                    <li>Hot-reload support (planned)</li>
+                    <li>No regex hell or complex directives</li>
+                    <li>Environment variable support for secrets</li>
+                </ul>
+            </div>
+
+            <div class="feature-detailed">
+                <h2>Performance</h2>
+                <p>Built in Go for maximum performance.</p>
+                <ul>
+                    <li>100,000+ requests/second throughput</li>
+                    <li>Less than 1ms average latency overhead</li>
+                    <li>50-100MB memory usage</li>
+                    <li>Single binary deployment</li>
+                    <li>Minimal external dependencies</li>
+                </ul>
+            </div>
+
+            <div class="feature-detailed">
+                <h2>Monitoring & Metrics</h2>
+                <p>Built-in Prometheus metrics for observability.</p>
+                <ul>
+                    <li>Attack detection and blocking metrics</li>
+                    <li>Rate limiting statistics</li>
+                    <li>HTTP request/response tracking</li>
+                    <li>Challenge completion rates</li>
+                    <li>Fingerprint statistics</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>RhinoWAF - Open Source Web Application Firewall</p>
+            <p>Licensed under AGPL-3.0 | <a href="https://github.com/1rhino2/RhinoWAF">GitHub</a> | <a href="https://github.com/1rhino2/RhinoWAF/issues">Report Issues</a></p>
+        </div>
+    </footer>
+</body>
+</html>

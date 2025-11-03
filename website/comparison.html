@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RhinoWAF vs Cloudflare, ModSecurity, AWS WAF - Complete comparison">
+    <title>Comparison - RhinoWAF</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <div class="logo">RhinoWAF</div>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="features.html">Features</a></li>
+                    <li><a href="benchmarks.html">Benchmarks</a></li>
+                    <li><a href="docs.html">Docs</a></li>
+                    <li><a href="comparison.html">Compare</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF">GitHub</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <section class="page-header">
+        <div class="container">
+            <h1>RhinoWAF vs Alternatives</h1>
+            <p>Comparing RhinoWAF to popular web application firewall solutions</p>
+        </div>
+    </section>
+
+    <section class="content">
+        <div class="container">
+            <h2>Quick Comparison</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>RhinoWAF</th>
+                        <th>Cloudflare</th>
+                        <th>ModSecurity</th>
+                        <th>AWS WAF</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Cost</td>
+                        <td>Free</td>
+                        <td>$20-200/mo</td>
+                        <td>Free</td>
+                        <td>$5+ per million</td>
+                    </tr>
+                    <tr>
+                        <td>Setup Time</td>
+                        <td>5 minutes</td>
+                        <td>30 minutes</td>
+                        <td>2-4 hours</td>
+                        <td>1 hour</td>
+                    </tr>
+                    <tr>
+                        <td>Self-Hosted</td>
+                        <td>Yes</td>
+                        <td>No</td>
+                        <td>Yes</td>
+                        <td>No</td>
+                    </tr>
+                    <tr>
+                        <td>DDoS Protection</td>
+                        <td>Built-in (L7)</td>
+                        <td>Yes (L3-L7)</td>
+                        <td>Limited</td>
+                        <td>Yes</td>
+                    </tr>
+                    <tr>
+                        <td>Rate Limiting</td>
+                        <td>Advanced</td>
+                        <td>Yes</td>
+                        <td>Basic</td>
+                        <td>Yes</td>
+                    </tr>
+                    <tr>
+                        <td>Bot Detection</td>
+                        <td>Yes</td>
+                        <td>Yes</td>
+                        <td>Limited</td>
+                        <td>Limited</td>
+                    </tr>
+                    <tr>
+                        <td>IPv6 Support</td>
+                        <td>Full</td>
+                        <td>Yes</td>
+                        <td>Yes</td>
+                        <td>Yes</td>
+                    </tr>
+                    <tr>
+                        <td>HTTP/3 Support</td>
+                        <td>Yes</td>
+                        <td>Yes</td>
+                        <td>No</td>
+                        <td>No</td>
+                    </tr>
+                    <tr>
+                        <td>Config Format</td>
+                        <td>JSON</td>
+                        <td>Web UI</td>
+                        <td>Complex</td>
+                        <td>Web UI</td>
+                    </tr>
+                    <tr>
+                        <td>Memory Usage</td>
+                        <td>Low (50-100MB)</td>
+                        <td>N/A</td>
+                        <td>Medium</td>
+                        <td>N/A</td>
+                    </tr>
+                    <tr>
+                        <td>Learning Curve</td>
+                        <td>Easy</td>
+                        <td>Easy</td>
+                        <td>Hard</td>
+                        <td>Medium</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="doc-section">
+                <h2>vs Cloudflare</h2>
+                
+                <h3>When to choose RhinoWAF</h3>
+                <ul>
+                    <li>You want full control over your data</li>
+                    <li>No monthly costs or per-request fees</li>
+                    <li>Need to run on-premise or air-gapped networks</li>
+                    <li>Don't want to change DNS settings</li>
+                    <li>Need custom rules beyond Cloudflare's limits</li>
+                    <li>Privacy-sensitive applications</li>
+                </ul>
+
+                <h3>When to choose Cloudflare</h3>
+                <ul>
+                    <li>You need global CDN functionality</li>
+                    <li>Want zero maintenance</li>
+                    <li>Need enterprise support contracts</li>
+                    <li>Have massive scale (multi-million requests/day)</li>
+                    <li>Need DDoS protection at network layer (L3/L4)</li>
+                </ul>
+            </div>
+
+            <div class="doc-section">
+                <h2>vs ModSecurity</h2>
+                
+                <h3>Why RhinoWAF is better</h3>
+                <ul>
+                    <li>Zero-config start vs hours of rule configuration</li>
+                    <li>Modern Go architecture vs legacy C codebase</li>
+                    <li>Built-in DDoS protection vs separate modules needed</li>
+                    <li>JSON config vs complex Apache/Nginx directives</li>
+                    <li>Active development vs slower update cycle</li>
+                    <li>Browser fingerprinting and challenge system built-in</li>
+                </ul>
+
+                <h3>When to stick with ModSecurity</h3>
+                <ul>
+                    <li>You need OWASP Core Rule Set compatibility</li>
+                    <li>Already invested in ModSecurity rule customization</li>
+                    <li>Require specific enterprise compliance certifications</li>
+                    <li>Need integration with existing Apache/Nginx setup</li>
+                </ul>
+            </div>
+
+            <div class="doc-section">
+                <h2>vs AWS WAF</h2>
+                
+                <h3>Why RhinoWAF wins</h3>
+                <ul>
+                    <li>No per-request charges (AWS charges per million requests)</li>
+                    <li>Works with any backend, not just AWS services</li>
+                    <li>Self-hosted means no data leaves your infrastructure</li>
+                    <li>Simpler pricing model (free)</li>
+                    <li>No vendor lock-in</li>
+                    <li>Full control over rules and policies</li>
+                </ul>
+
+                <h3>When to use AWS WAF</h3>
+                <ul>
+                    <li>Already heavily invested in AWS ecosystem</li>
+                    <li>Need AWS Shield Advanced integration</li>
+                    <li>Want managed rule sets updated by AWS</li>
+                    <li>Using AWS CloudFront or Application Load Balancer</li>
+                </ul>
+            </div>
+
+            <div class="doc-section">
+                <h2>Cost Comparison (Annual)</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Solution</th>
+                            <th>Base Cost</th>
+                            <th>Per Million Requests</th>
+                            <th>Typical Annual Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>RhinoWAF</td>
+                            <td>$0</td>
+                            <td>$0</td>
+                            <td>$0</td>
+                        </tr>
+                        <tr>
+                            <td>Cloudflare Pro</td>
+                            <td>$240/year</td>
+                            <td>Included</td>
+                            <td>$240</td>
+                        </tr>
+                        <tr>
+                            <td>Cloudflare Business</td>
+                            <td>$2,400/year</td>
+                            <td>Included</td>
+                            <td>$2,400</td>
+                        </tr>
+                        <tr>
+                            <td>AWS WAF</td>
+                            <td>$730/year (base)</td>
+                            <td>$6</td>
+                            <td>$1,000-5,000</td>
+                        </tr>
+                        <tr>
+                            <td>ModSecurity</td>
+                            <td>$0</td>
+                            <td>$0</td>
+                            <td>$0 (but higher ops cost)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="doc-section">
+                <h2>Use Case Recommendations</h2>
+                
+                <h3>Choose RhinoWAF for</h3>
+                <ul>
+                    <li>Startups and small businesses</li>
+                    <li>Self-hosted applications</li>
+                    <li>Privacy-sensitive applications</li>
+                    <li>Development and staging environments</li>
+                    <li>Learning web security</li>
+                    <li>Cost-conscious deployments</li>
+                    <li>On-premise requirements</li>
+                    <li>Air-gapped networks</li>
+                </ul>
+
+                <h3>Consider alternatives for</h3>
+                <ul>
+                    <li>Enterprise with strict compliance requirements</li>
+                    <li>Need 24/7 vendor support with SLAs</li>
+                    <li>Global CDN is critical to your architecture</li>
+                    <li>Massive scale (multi-million req/s)</li>
+                    <li>Need network-layer DDoS protection (L3/L4)</li>
+                </ul>
+            </div>
+
+            <div class="doc-section">
+                <h2>Migration Difficulty</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>From</th>
+                            <th>To RhinoWAF</th>
+                            <th>Complexity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Cloudflare</td>
+                            <td>Easy - just point traffic to RhinoWAF</td>
+                            <td>Low</td>
+                        </tr>
+                        <tr>
+                            <td>ModSecurity</td>
+                            <td>Medium - some rule translation needed</td>
+                            <td>Medium</td>
+                        </tr>
+                        <tr>
+                            <td>AWS WAF</td>
+                            <td>Easy - similar rule concepts</td>
+                            <td>Low</td>
+                        </tr>
+                        <tr>
+                            <td>Nginx</td>
+                            <td>Easy - RhinoWAF can replace nginx</td>
+                            <td>Low</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>RhinoWAF - Open Source Web Application Firewall</p>
+            <p>Licensed under AGPL-3.0 | <a href="https://github.com/1rhino2/RhinoWAF">GitHub</a> | <a href="https://github.com/1rhino2/RhinoWAF/issues">Report Issues</a></p>
+        </div>
+    </footer>
+</body>
+</html>
