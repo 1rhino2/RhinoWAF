@@ -246,13 +246,13 @@ func (d *Detector) validateTransferEncoding(teHeaders []string) []Violation {
 func (d *Detector) isValidTransferEncoding(te string) bool {
 	validEncodings := []string{"chunked", "compress", "deflate", "gzip", "identity"}
 	encodingParts := strings.Split(strings.ToLower(te), ",")
-	
+
 	for _, part := range encodingParts {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
 		}
-		
+
 		valid := false
 		for _, validEnc := range validEncodings {
 			if part == validEnc {
@@ -264,7 +264,7 @@ func (d *Detector) isValidTransferEncoding(te string) bool {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
