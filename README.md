@@ -7,7 +7,9 @@
 [![Stars](https://img.shields.io/github/stars/1rhino2/RhinoWAF?style=social)](https://github.com/1rhino2/RhinoWAF)
 
 📚 **[View Full Documentation & Benchmarks](https://1rhino2.github.io/RhinoWAF/)** | [Features](https://1rhino2.github.io/RhinoWAF/features.html) | [Comparison](https://1rhino2.github.io/RhinoWAF/comparison.html)
-site down
+
+# SITE NOT YET HOSTED
+
 **Keywords**: web application firewall, ddos protection, rate limiting, bot detection, reverse proxy, api gateway security, nginx alternative, modsecurity alternative
 
 ## Production Notice

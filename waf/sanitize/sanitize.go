@@ -122,141 +122,144 @@ func Clean(s string) string {
 
 // IsMalicious checks ALL input vectors for malicious patterns
 func IsMalicious(r *http.Request) bool {
-	check := func(s string) bool {
-		s = strings.ToLower(s)
+	return checkQueryParams(r) || checkPath(r) || checkFormData(r) ||
+		checkMultipartForm(r) || checkHeaders(r) || checkCookies(r) ||
+		checkFragment(r) || checkBasicAuth(r)
+}
 
-		// XSS patterns
-		if strings.Contains(s, "<script") || strings.Contains(s, "javascript:") ||
-			strings.Contains(s, "onerror=") || strings.Contains(s, "onload=") ||
-			strings.Contains(s, "<iframe") || strings.Contains(s, "<svg") {
-			return true
-		}
-
-		// SQL injection patterns
-		if strings.Contains(s, "union select") || strings.Contains(s, "union all select") {
-			return true
-		}
-		if strings.Contains(s, "drop table") || strings.Contains(s, "drop database") {
-			return true
-		}
-		if strings.Contains(s, "' or '1'='1") || strings.Contains(s, "' or 1=1") ||
-			strings.Contains(s, "\" or \"1\"=\"1") || strings.Contains(s, "or 1=1--") {
-			return true
-		}
-		if strings.Contains(s, "'; exec") || strings.Contains(s, "'; drop") {
-			return true
-		}
-		if strings.Contains(s, "waitfor delay") {
-			return true
-		}
-		if strings.Contains(s, "' order by") && strings.Contains(s, "--") {
-			return true
-		}
-		if strings.Contains(s, "admin'--") || strings.Contains(s, "admin' --") {
-			return true
-		}
-
-		// Generic SQL patterns with context
-		if (strings.Contains(s, "' and ") || strings.Contains(s, "' or ")) &&
-			(strings.Contains(s, "'='") || strings.Contains(s, "=")) {
-			return true
-		}
-
-		if sqlOrEqualRegex.MatchString(s) {
-			return true
-		}
-		if dropTableRegex.MatchString(s) {
-			return true
-		}
-
-		return false
-	}
-
+func checkQueryParams(r *http.Request) bool {
 	for _, vals := range r.URL.Query() {
 		for _, v := range vals {
-			if check(v) {
+			if isMaliciousString(v) {
 				return true
 			}
 		}
 	}
+	return false
+}
 
-	if check(r.URL.Path) {
-		return true
-	}
+func checkPath(r *http.Request) bool {
+	return isMaliciousString(r.URL.Path)
+}
 
+func checkFormData(r *http.Request) bool {
 	_ = r.ParseForm()
 	for _, vals := range r.Form {
 		for _, v := range vals {
-			if check(v) {
+			if isMaliciousString(v) {
 				return true
 			}
 		}
 	}
-
 	for _, vals := range r.PostForm {
 		for _, v := range vals {
-			if check(v) {
+			if isMaliciousString(v) {
 				return true
 			}
 		}
 	}
+	return false
+}
 
-	if r.MultipartForm != nil {
-		for _, vals := range r.MultipartForm.Value {
-			for _, v := range vals {
-				if check(v) {
-					return true
-				}
-			}
-		}
-		for _, files := range r.MultipartForm.File {
-			for _, fh := range files {
-				if check(fh.Filename) {
-					return true
-				}
+func checkMultipartForm(r *http.Request) bool {
+	if r.MultipartForm == nil {
+		return false
+	}
+	for _, vals := range r.MultipartForm.Value {
+		for _, v := range vals {
+			if isMaliciousString(v) {
+				return true
 			}
 		}
 	}
+	for _, files := range r.MultipartForm.File {
+		for _, fh := range files {
+			if isMaliciousString(fh.Filename) {
+				return true
+			}
+		}
+	}
+	return false
+}
 
+func checkHeaders(r *http.Request) bool {
 	criticalHeaders := map[string]bool{
-		"Content-Type":      true,
-		"Content-Length":    true,
-		"Host":              true,
-		"User-Agent":        true, // legit user agents might have these keywords
-		"Accept":            true,
-		"Accept-Encoding":   true,
-		"Accept-Language":   true,
-		"Connection":        true,
-		"Transfer-Encoding": true,
+		"Content-Type": true, "Content-Length": true, "Host": true,
+		"User-Agent": true, "Accept": true, "Accept-Encoding": true,
+		"Accept-Language": true, "Connection": true, "Transfer-Encoding": true,
 	}
 	for k, vals := range r.Header {
 		if criticalHeaders[k] {
 			continue
 		}
 		for _, v := range vals {
-			if check(v) {
+			if isMaliciousString(v) {
 				return true
 			}
 		}
 	}
+	return false
+}
 
+func checkCookies(r *http.Request) bool {
 	for _, c := range r.Cookies() {
-		if check(c.Value) || check(c.Name) {
+		if isMaliciousString(c.Value) || isMaliciousString(c.Name) {
 			return true
 		}
 	}
+	return false
+}
 
-	if check(r.URL.Fragment) {
+func checkFragment(r *http.Request) bool {
+	return isMaliciousString(r.URL.Fragment)
+}
+
+func checkBasicAuth(r *http.Request) bool {
+	if user, pass, ok := r.BasicAuth(); ok {
+		return isMaliciousString(user) || isMaliciousString(pass)
+	}
+	return false
+}
+
+func isMaliciousString(s string) bool {
+	s = strings.ToLower(s)
+	return hasXSSPatterns(s) || hasSQLInjectionPatterns(s)
+}
+
+func hasXSSPatterns(s string) bool {
+	return strings.Contains(s, "<script") || strings.Contains(s, "javascript:") ||
+		strings.Contains(s, "onerror=") || strings.Contains(s, "onload=") ||
+		strings.Contains(s, "<iframe") || strings.Contains(s, "<svg")
+}
+
+func hasSQLInjectionPatterns(s string) bool {
+	if strings.Contains(s, "union select") || strings.Contains(s, "union all select") {
 		return true
 	}
-
-	if user, pass, ok := r.BasicAuth(); ok {
-		if check(user) || check(pass) {
-			return true
-		}
+	if strings.Contains(s, "drop table") || strings.Contains(s, "drop database") {
+		return true
 	}
-
-	return false
+	if strings.Contains(s, "' or '1'='1") || strings.Contains(s, "' or 1=1") ||
+		strings.Contains(s, "\" or \"1\"=\"1") || strings.Contains(s, "or 1=1--") {
+		return true
+	}
+	if strings.Contains(s, "'; exec") || strings.Contains(s, "'; drop") {
+		return true
+	}
+	if strings.Contains(s, "waitfor delay") {
+		return true
+	}
+	if strings.Contains(s, "' order by") && strings.Contains(s, "--") {
+		return true
+	}
+	if strings.Contains(s, "admin'--") || strings.Contains(s, "admin' --") {
+		return true
+	}
+	if (strings.Contains(s, "' and ") || strings.Contains(s, "' or ")) &&
+		(strings.Contains(s, "'='") || strings.Contains(s, "=")) {
+		return true
+	}
+	return sqlOrEqualRegex.MatchString(s) || dropTableRegex.MatchString(s)
 }
 
 // ValidateHeaders checks for malformed or malicious headers

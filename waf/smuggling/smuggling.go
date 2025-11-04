@@ -63,12 +63,22 @@ func NewDetector(strictMode bool, logViolations bool, blockSeverity int) *Detect
 // Check performs comprehensive smuggling detection on the request
 func (d *Detector) Check(r *http.Request) ([]Violation, bool) {
 	violations := []Violation{}
-
-	// Extract all Content-Length and Transfer-Encoding headers
 	clHeaders := r.Header.Values("Content-Length")
 	teHeaders := r.Header.Values("Transfer-Encoding")
 
-	// Check for multiple Content-Length headers
+	violations = append(violations, d.checkMultipleHeaders(clHeaders, teHeaders)...)
+	violations = append(violations, d.checkCLTEConflict(clHeaders, teHeaders)...)
+	violations = append(violations, d.validateContentLength(clHeaders, teHeaders)...)
+	violations = append(violations, d.validateTransferEncoding(teHeaders)...)
+	violations = append(violations, d.checkProtocolViolations(r)...)
+
+	shouldBlock := d.shouldBlockRequest(violations)
+	return violations, shouldBlock
+}
+
+func (d *Detector) checkMultipleHeaders(clHeaders, teHeaders []string) []Violation {
+	violations := []Violation{}
+
 	if len(clHeaders) > 1 {
 		violations = append(violations, Violation{
 			Type:        ViolationMultipleCL,
@@ -78,9 +88,7 @@ func (d *Detector) Check(r *http.Request) ([]Violation, bool) {
 		})
 	}
 
-	// Check for multiple Transfer-Encoding headers
 	if len(teHeaders) > 1 {
-		// Check if they're genuinely different or just duplicates
 		uniqueTE := make(map[string]bool)
 		for _, te := range teHeaders {
 			uniqueTE[strings.ToLower(strings.TrimSpace(te))] = true
@@ -102,12 +110,16 @@ func (d *Detector) Check(r *http.Request) ([]Violation, bool) {
 		}
 	}
 
-	// Check for both CL and TE present (CL.TE or TE.CL attacks)
+	return violations
+}
+
+func (d *Detector) checkCLTEConflict(clHeaders, teHeaders []string) []Violation {
+	violations := []Violation{}
+
 	if len(clHeaders) > 0 && len(teHeaders) > 0 {
 		cl := clHeaders[0]
 		te := teHeaders[0]
 
-		// CL.TE attack: backend uses CL, frontend uses TE
 		if teChunkedRegex.MatchString(te) {
 			violations = append(violations, Violation{
 				Type:        ViolationCLTE,
@@ -120,7 +132,6 @@ func (d *Detector) Check(r *http.Request) ([]Violation, bool) {
 			})
 		}
 
-		// TE.CL attack: backend uses TE, frontend uses CL
 		violations = append(violations, Violation{
 			Type:        ViolationTECL,
 			Description: fmt.Sprintf("TE.CL smuggling detected: TE=%s, CL=%s", te, cl),
@@ -132,118 +143,134 @@ func (d *Detector) Check(r *http.Request) ([]Violation, bool) {
 		})
 	}
 
-	// Validate Content-Length format
-	if len(clHeaders) > 0 {
-		for _, cl := range clHeaders {
-			// Check for whitespace or special characters in CL
-			if spaceInHeaderRegex.MatchString(cl) {
-				violations = append(violations, Violation{
-					Type:        ViolationWhitespaceInCL,
-					Description: fmt.Sprintf("whitespace or control chars in Content-Length: %q", cl),
-					Severity:    5,
-					Headers:     map[string][]string{"Content-Length": {cl}},
-				})
-			}
+	return violations
+}
 
-			// Check for obfuscation attempts (hex, extra spaces, etc)
-			if multipleSpacesRegex.MatchString(cl) || hexPrefixRegex.MatchString(cl) {
-				violations = append(violations, Violation{
-					Type:        ViolationObfuscatedCL,
-					Description: fmt.Sprintf("obfuscated Content-Length value: %q", cl),
-					Severity:    5,
-					Headers:     map[string][]string{"Content-Length": {cl}},
-				})
-			}
+func (d *Detector) validateContentLength(clHeaders, teHeaders []string) []Violation {
+	violations := []Violation{}
 
-			// Validate it's a valid non-negative integer
-			if clInt, err := strconv.ParseInt(strings.TrimSpace(cl), 10, 64); err != nil {
-				violations = append(violations, Violation{
-					Type:        ViolationInvalidCL,
-					Description: fmt.Sprintf("invalid Content-Length value: %q", cl),
-					Severity:    5,
-					Headers:     map[string][]string{"Content-Length": {cl}},
-				})
-			} else if clInt < 0 {
-				violations = append(violations, Violation{
-					Type:        ViolationNegativeCL,
-					Description: fmt.Sprintf("negative Content-Length value: %d", clInt),
-					Severity:    5,
-					Headers:     map[string][]string{"Content-Length": {cl}},
-				})
-			} else if clInt == 0 && len(teHeaders) > 0 {
-				// CL:0 with TE can be used to bypass certain proxies
-				violations = append(violations, Violation{
-					Type:        ViolationCLZeroWithTE,
-					Description: "Content-Length: 0 combined with Transfer-Encoding (bypass attempt)",
-					Severity:    4,
-					Headers: map[string][]string{
-						"Content-Length":    {cl},
-						"Transfer-Encoding": teHeaders,
-					},
-				})
-			}
+	for _, cl := range clHeaders {
+		if spaceInHeaderRegex.MatchString(cl) {
+			violations = append(violations, Violation{
+				Type:        ViolationWhitespaceInCL,
+				Description: fmt.Sprintf("whitespace or control chars in Content-Length: %q", cl),
+				Severity:    5,
+				Headers:     map[string][]string{"Content-Length": {cl}},
+			})
+		}
+
+		if multipleSpacesRegex.MatchString(cl) || hexPrefixRegex.MatchString(cl) {
+			violations = append(violations, Violation{
+				Type:        ViolationObfuscatedCL,
+				Description: fmt.Sprintf("obfuscated Content-Length value: %q", cl),
+				Severity:    5,
+				Headers:     map[string][]string{"Content-Length": {cl}},
+			})
+		}
+
+		clInt, err := strconv.ParseInt(strings.TrimSpace(cl), 10, 64)
+		if err != nil {
+			violations = append(violations, Violation{
+				Type:        ViolationInvalidCL,
+				Description: fmt.Sprintf("invalid Content-Length value: %q", cl),
+				Severity:    5,
+				Headers:     map[string][]string{"Content-Length": {cl}},
+			})
+		} else if clInt < 0 {
+			violations = append(violations, Violation{
+				Type:        ViolationNegativeCL,
+				Description: fmt.Sprintf("negative Content-Length value: %d", clInt),
+				Severity:    5,
+				Headers:     map[string][]string{"Content-Length": {cl}},
+			})
+		} else if clInt == 0 && len(teHeaders) > 0 {
+			violations = append(violations, Violation{
+				Type:        ViolationCLZeroWithTE,
+				Description: "Content-Length: 0 combined with Transfer-Encoding (bypass attempt)",
+				Severity:    4,
+				Headers: map[string][]string{
+					"Content-Length":    {cl},
+					"Transfer-Encoding": teHeaders,
+				},
+			})
 		}
 	}
 
-	// Validate Transfer-Encoding format
-	if len(teHeaders) > 0 {
-		for _, te := range teHeaders {
-			// Check for whitespace or control characters
-			if spaceInHeaderRegex.MatchString(te) {
-				violations = append(violations, Violation{
-					Type:        ViolationWhitespaceInTE,
-					Description: fmt.Sprintf("whitespace or control chars in Transfer-Encoding: %q", te),
-					Severity:    5,
-					Headers:     map[string][]string{"Transfer-Encoding": {te}},
-				})
-			}
+	return violations
+}
 
-			// Check for obfuscation (multiple spaces, case variations)
-			if multipleSpacesRegex.MatchString(te) {
-				violations = append(violations, Violation{
-					Type:        ViolationObfuscatedTE,
-					Description: fmt.Sprintf("obfuscated Transfer-Encoding value: %q", te),
-					Severity:    5,
-					Headers:     map[string][]string{"Transfer-Encoding": {te}},
-				})
-			}
+func (d *Detector) validateTransferEncoding(teHeaders []string) []Violation {
+	violations := []Violation{}
 
-			// Check for multiple "chunked" in single header (chunked, chunked)
-			if conflictingTERegex.MatchString(te) {
-				violations = append(violations, Violation{
-					Type:        ViolationConflictingTE,
-					Description: fmt.Sprintf("conflicting chunked encodings: %q", te),
-					Severity:    5,
-					Headers:     map[string][]string{"Transfer-Encoding": {te}},
-				})
-			}
+	for _, te := range teHeaders {
+		if spaceInHeaderRegex.MatchString(te) {
+			violations = append(violations, Violation{
+				Type:        ViolationWhitespaceInTE,
+				Description: fmt.Sprintf("whitespace or control chars in Transfer-Encoding: %q", te),
+				Severity:    5,
+				Headers:     map[string][]string{"Transfer-Encoding": {te}},
+			})
+		}
 
-			// Validate TE value (should be "chunked" or valid encoding)
-			validEncodings := []string{"chunked", "compress", "deflate", "gzip", "identity"}
-			encodingParts := strings.Split(strings.ToLower(te), ",")
-			for _, part := range encodingParts {
-				part = strings.TrimSpace(part)
-				valid := false
-				for _, validEnc := range validEncodings {
-					if part == validEnc {
-						valid = true
-						break
-					}
-				}
-				if !valid && part != "" {
-					violations = append(violations, Violation{
-						Type:        ViolationInvalidTE,
-						Description: fmt.Sprintf("invalid Transfer-Encoding value: %q", te),
-						Severity:    4,
-						Headers:     map[string][]string{"Transfer-Encoding": {te}},
-					})
-					break
-				}
-			}
+		if multipleSpacesRegex.MatchString(te) {
+			violations = append(violations, Violation{
+				Type:        ViolationObfuscatedTE,
+				Description: fmt.Sprintf("obfuscated Transfer-Encoding value: %q", te),
+				Severity:    5,
+				Headers:     map[string][]string{"Transfer-Encoding": {te}},
+			})
+		}
+
+		if conflictingTERegex.MatchString(te) {
+			violations = append(violations, Violation{
+				Type:        ViolationConflictingTE,
+				Description: fmt.Sprintf("conflicting chunked encodings: %q", te),
+				Severity:    5,
+				Headers:     map[string][]string{"Transfer-Encoding": {te}},
+			})
+		}
+
+		if !d.isValidTransferEncoding(te) {
+			violations = append(violations, Violation{
+				Type:        ViolationInvalidTE,
+				Description: fmt.Sprintf("invalid Transfer-Encoding value: %q", te),
+				Severity:    4,
+				Headers:     map[string][]string{"Transfer-Encoding": {te}},
+			})
 		}
 	}
 
-	// Check for HTTP/0.9 with headers (rare smuggling vector)
+	return violations
+}
+
+func (d *Detector) isValidTransferEncoding(te string) bool {
+	validEncodings := []string{"chunked", "compress", "deflate", "gzip", "identity"}
+	encodingParts := strings.Split(strings.ToLower(te), ",")
+	
+	for _, part := range encodingParts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		
+		valid := false
+		for _, validEnc := range validEncodings {
+			if part == validEnc {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return false
+		}
+	}
+	
+	return true
+}
+
+func (d *Detector) checkProtocolViolations(r *http.Request) []Violation {
+	violations := []Violation{}
+
 	if r.ProtoMajor == 0 && r.ProtoMinor == 9 && len(r.Header) > 0 {
 		violations = append(violations, Violation{
 			Type:        ViolationHTTP09WithHeaders,
@@ -253,7 +280,6 @@ func (d *Detector) Check(r *http.Request) ([]Violation, bool) {
 		})
 	}
 
-	// Check for invalid protocol versions
 	if r.ProtoMajor < 0 || r.ProtoMinor < 0 || r.ProtoMajor > 3 {
 		violations = append(violations, Violation{
 			Type:        ViolationInvalidProtocol,
@@ -263,16 +289,16 @@ func (d *Detector) Check(r *http.Request) ([]Violation, bool) {
 		})
 	}
 
-	// Determine if request should be blocked
-	shouldBlock := false
+	return violations
+}
+
+func (d *Detector) shouldBlockRequest(violations []Violation) bool {
 	for _, v := range violations {
 		if v.Severity >= d.BlockOnSeverity {
-			shouldBlock = true
-			break
+			return true
 		}
 	}
-
-	return violations, shouldBlock
+	return false
 }
 
 // GetViolationSummary returns a formatted summary of violations
