@@ -8,7 +8,7 @@
 
 📚 **[View Full Documentation & Benchmarks](https://1rhino2.github.io/RhinoWAF/)** | [Features](https://1rhino2.github.io/RhinoWAF/features.html) | [Comparison](https://1rhino2.github.io/RhinoWAF/comparison.html)
 
-# SITE NOT YET HOSTED
+
 
 **Keywords**: web application firewall, ddos protection, rate limiting, bot detection, reverse proxy, api gateway security, nginx alternative, modsecurity alternative
 
