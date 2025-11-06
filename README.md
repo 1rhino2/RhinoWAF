@@ -18,11 +18,11 @@ Recent benchmark testing achieved **90.49% overall attack detection** across 327
 
 The developers provide this software "as is" without warranty. Users assume all risks including potential loss, damage, or downtime. See benchmark results below for detailed test data.
 
-**Version:** 2.4.1
-**Status:** Request ID Tracking Added
-**Last Updated:** October 30, 2025
+**Version:** 2.5.0
+**Status:** IPv6 Support Added
+**Last Updated:** November 2, 2025
 
-Modern Web Application Firewall (WAF) built with Go, featuring DDoS protection, browser fingerprinting, challenge system, CSRF protection, and advanced security capabilities.
+Modern Web Application Firewall (WAF) built with Go, featuring DDoS protection, browser fingerprinting, challenge system, CSRF protection, IPv6 support, and advanced security capabilities.
 
 ---
 
@@ -71,7 +71,7 @@ This project is developed collaboratively by a small team, allowing for rapid it
 ### **Core Protection**
 
 - **DDoS Protection**: Rate limiting, burst detection, Slowloris mitigation, reputation scoring
-- **IPv6 Support**: Full IPv6 and dual-stack support for all security features (v2.5+)
+- **IPv6 Support**: Full IPv6 and dual-stack support for all security features (v2.5)
 - **Input Sanitization**: SQL injection, XSS, path traversal, command injection blocking
 - **HTTP Request Smuggling Detection**: CL.TE, TE.CL, TE.TE, header obfuscation, protocol violations
 - **IP Management**: 60+ per-IP control fields with priority-based rule matching
@@ -132,8 +132,9 @@ This project is developed collaboratively by a small team, allowing for rapid it
 
 As of v2.4.1, sensitive endpoints (/metrics, /health, /reload, /flood, /fingerprint/collect, /fingerprint/stats, /csrf/token) are restricted to localhost by default. Requests from non-localhost IPs will be blocked with HTTP 403. See `waf/localhost.go` for details.
 
-## Production Status (v2.4.1)
+## Production Status (v2.5.0)
 
+- **IPv6 Support**: Full dual-stack operation with CIDR matching and rate limiting
 - **Request ID Tracking**: Enabled for all requests with X-Request-ID header
 - **CSRF Protection**: Enabled with token validation for all state-changing requests
 - **OAuth2 Authentication**: Path-based protection with industry-standard OAuth2 providers
@@ -1130,6 +1131,7 @@ Comprehensive documentation is available in the `docs/` directory:
 ### Core Security Features
 
 - **[IP_RULES.md](docs/configuration/IP_RULES.md)** - Advanced IP rule configuration (60+ fields, time-based restrictions, behavioral limits)
+- **[IPV6_SUPPORT.md](docs/features/IPV6_SUPPORT.md)** - IPv6 dual-stack support and configuration
 - **[CSRF_PROTECTION.md](docs/features/CSRF_PROTECTION.md)** - Cross-Site Request Forgery protection with token validation
 - **[CHALLENGE_SYSTEM.md](docs/features/CHALLENGE_SYSTEM.md)** - Bot detection with JavaScript, PoW, hCaptcha, and Turnstile challenges
 - **[CHALLENGE_EXAMPLES.md](docs/examples/CHALLENGE_EXAMPLES.md)** - Challenge system code examples and integration patterns
@@ -1151,12 +1153,13 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[V2.2_FEATURES.md](docs/changelogs/V2.2_FEATURES.md)** - Version 2.2 release notes
 - **[V2.3_FEATURES.md](docs/changelogs/V2.3_FEATURES.md)** - Version 2.3 release notes (metrics, hot-reload, logging)
 - **[V2.4_FEATURES.md](docs/changelogs/V2.4_FEATURES.md)** - Version 2.4 release notes
-- **[V2.4.1_FEATURES.md](docs/changelogs/V2.4.1_FEATURES.md)** - Version 2.4.1 release notes (OAuth2, HTTP/3)
+- **[V2.5_FEATURES.md](docs/changelogs/V2.5_FEATURES.md)** - Version 2.5 release notes (IPv6 support)
 - **[V2.4.2_FEATURES.md](docs/changelogs/V2.4.2_FEATURES.md)** - Version 2.4.2 release notes (CSRF protection)
+- **[V2.4.1_FEATURES.md](docs/changelogs/V2.4.1_FEATURES.md)** - Version 2.4.1 release notes (OAuth2, HTTP/3)
 
 ### Roadmap
 
-- **[V2.5_ROADMAP.md](docs/roadmap/V2.5_ROADMAP.md)** - Future development plans
+- **[V2.5_ROADMAP.md](docs/roadmap/V2.5_ROADMAP.md)** - Future development plans (v2.6 features)
 
 ---
 
@@ -1166,7 +1169,7 @@ AGPL-3.0 - requires open sourcing derivative works
 
 ---
 
-**Version**: 2.4.2 | **Status**: Production-ready with CSRF protection | **Last Updated**: October 29, 2025
+**Version**: 2.5.0 | **Status**: Production-ready with IPv6 support | **Last Updated**: November 2, 2025
 
 ---
 
