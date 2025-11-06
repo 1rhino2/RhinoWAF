@@ -132,7 +132,7 @@ func checkQueryParams(r *http.Request) bool {
 	if isMaliciousString(r.URL.RawQuery) {
 		return true
 	}
-	
+
 	for _, vals := range r.URL.Query() {
 		for _, v := range vals {
 			if isMaliciousString(v) {
@@ -193,25 +193,25 @@ func checkHeaders(r *http.Request) bool {
 		"Accept": true, "Accept-Encoding": true,
 		"Accept-Language": true, "Connection": true,
 	}
-	
+
 	for k, vals := range r.Header {
 		for _, v := range vals {
 			// check for CRLF injection
 			if strings.Contains(v, "\r") || strings.Contains(v, "\n") {
 				return true
 			}
-			
+
 			// check for null bytes
 			if strings.Contains(v, "\x00") {
 				return true
 			}
-			
+
 			// check for header smuggling patterns
 			if strings.Contains(strings.ToLower(v), "transfer-encoding") ||
 				strings.Contains(strings.ToLower(v), "content-length") {
 				return true
 			}
-			
+
 			if !criticalHeaders[k] {
 				if isMaliciousString(v) {
 					return true
@@ -219,7 +219,7 @@ func checkHeaders(r *http.Request) bool {
 			}
 		}
 	}
-	
+
 	// check for authorization bypass headers
 	bypassHeaders := []string{
 		"X-Original-URL", "X-Rewrite-URL", "X-Custom-IP-Authorization",
@@ -229,14 +229,14 @@ func checkHeaders(r *http.Request) bool {
 			return true
 		}
 	}
-	
+
 	// check for localhost/internal IP in X-Forwarded-For
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		if strings.Contains(xff, "127.0.0.1") || strings.Contains(xff, "localhost") {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -262,7 +262,7 @@ func checkBasicAuth(r *http.Request) bool {
 
 func isMaliciousString(s string) bool {
 	s = strings.ToLower(s)
-	return hasXSSPatterns(s) || hasSQLInjectionPatterns(s) || 
+	return hasXSSPatterns(s) || hasSQLInjectionPatterns(s) ||
 		hasPathTraversal(s) || hasCommandInjection(s) ||
 		hasLDAPInjection(s) || hasNoSQLInjection(s) ||
 		hasSSRFPatterns(s) || hasTemplateInjection(s)
@@ -290,19 +290,19 @@ func hasCommandInjection(s string) bool {
 		strings.Contains(s, "; id") || strings.Contains(s, "| id") {
 		return true
 	}
-	
+
 	// command substitution
 	if strings.Contains(s, "`cat ") || strings.Contains(s, "$(wget") ||
 		strings.Contains(s, "$(curl") || strings.Contains(s, "`id`") ||
 		strings.Contains(s, "$(id)") {
 		return true
 	}
-	
+
 	// shellshock
 	if strings.Contains(s, "() { :; };") {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -360,13 +360,13 @@ func hasXSSPatterns(s string) bool {
 	if strings.Contains(s, "<script") || strings.Contains(s, "</script") {
 		return true
 	}
-	
+
 	// protocol handlers
 	if strings.Contains(s, "javascript:") || strings.Contains(s, "vbscript:") ||
 		strings.Contains(s, "data:") || strings.Contains(s, "file:") {
 		return true
 	}
-	
+
 	// event handlers (comprehensive list)
 	eventHandlers := []string{
 		"onerror=", "onload=", "onmouseover=", "onclick=", "onfocus=",
@@ -381,7 +381,7 @@ func hasXSSPatterns(s string) bool {
 			return true
 		}
 	}
-	
+
 	// HTML tags that can execute scripts
 	if strings.Contains(s, "<iframe") || strings.Contains(s, "<svg") ||
 		strings.Contains(s, "<embed") || strings.Contains(s, "<object") ||
@@ -393,39 +393,39 @@ func hasXSSPatterns(s string) bool {
 		strings.Contains(s, "<template") || strings.Contains(s, "<slot") {
 		return true
 	}
-	
+
 	// CSS injection
 	if strings.Contains(s, "expression(") || strings.Contains(s, "@import") ||
 		strings.Contains(s, "behavior:") || strings.Contains(s, "url(") {
 		return true
 	}
-	
+
 	// DOM-based and special patterns
 	if strings.Contains(s, "document.") || strings.Contains(s, "window.") ||
 		strings.Contains(s, "eval(") || strings.Contains(s, "alert(") ||
 		strings.Contains(s, "prompt(") || strings.Contains(s, "confirm(") {
 		return true
 	}
-	
+
 	// XML/XHTML vectors
 	if strings.Contains(s, "<![cdata[") || strings.Contains(s, "<!entity") ||
 		strings.Contains(s, "xmlns") {
 		return true
 	}
-	
+
 	// Template injection
 	if strings.Contains(s, "{{constructor") || strings.Contains(s, "dangerouslysetinnerhtml") ||
 		strings.Contains(s, "v-html") || strings.Contains(s, "${") {
 		return true
 	}
-	
+
 	// Encoding bypasses
 	if strings.Contains(s, "&#") || strings.Contains(s, "\\u") ||
 		strings.Contains(s, "\\x") || strings.Contains(s, "%3c") ||
 		strings.Contains(s, "%3e") {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -530,7 +530,7 @@ func hasSQLInjectionPatterns(s string) bool {
 	}
 
 	// order/group by - only flag if combined with dangerous patterns
-	if (strings.Contains(s, "order by") || strings.Contains(s, "group by")) {
+	if strings.Contains(s, "order by") || strings.Contains(s, "group by") {
 		if strings.Contains(s, "union") || strings.Contains(s, "select") ||
 			strings.Contains(s, "--") || strings.Contains(s, "#") {
 			return true

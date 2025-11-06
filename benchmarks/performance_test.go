@@ -126,11 +126,11 @@ func BenchmarkPOSTWithFormData(b *testing.B) {
 // Benchmark concurrent requests
 func BenchmarkConcurrentRequests(b *testing.B) {
 	handler := waf.AdaptiveProtect(handlers.Home)
-	
+
 	b.RunParallel(func(pb *testing.PB) {
 		req := httptest.NewRequest("GET", "/", nil)
 		req.RemoteAddr = "192.168.1.1:1234"
-		
+
 		for pb.Next() {
 			w := httptest.NewRecorder()
 			handler(w, req)

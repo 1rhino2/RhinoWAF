@@ -75,7 +75,7 @@ func BenchmarkCSRFMiddleware(b *testing.B) {
 	})
 	csrfMW := csrf.NewMiddleware(csrfManager)
 	handler := csrfMW.Handler(http.HandlerFunc(handlers.Home))
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "192.168.1.1:1234"
 	b.ResetTimer()
@@ -100,7 +100,7 @@ func BenchmarkFingerprintMiddleware(b *testing.B) {
 	tracker := fingerprint.NewTracker(fpConfig)
 	fpMW := fingerprint.NewMiddleware(tracker)
 	handler := fpMW.Handler(http.HandlerFunc(handlers.Home))
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "192.168.1.1:1234"
 	req.Header.Set("User-Agent", "Mozilla/5.0")
@@ -125,7 +125,7 @@ func BenchmarkChallengeMiddleware(b *testing.B) {
 	}
 	challengeMW := challenge.NewMiddleware(challengeMgr, challengeConfig)
 	handler := challengeMW.Handler(http.HandlerFunc(handlers.Home))
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "192.168.1.1:1234"
 	b.ResetTimer()
@@ -143,7 +143,7 @@ func BenchmarkTwoMiddlewares(b *testing.B) {
 		sanitize.All(r)
 		handlers.Home(w, r)
 	}))
-	
+
 	req := httptest.NewRequest("GET", "/?name=test", nil)
 	req.RemoteAddr = "192.168.1.1:1234"
 	b.ResetTimer()
@@ -164,12 +164,12 @@ func BenchmarkThreeMiddlewares(b *testing.B) {
 		ExemptMethods: []string{"GET", "HEAD", "OPTIONS"},
 	})
 	csrfMW := csrf.NewMiddleware(csrfManager)
-	
+
 	handler := requestid.Middleware(csrfMW.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sanitize.All(r)
 		handlers.Home(w, r)
 	})))
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "192.168.1.1:1234"
 	b.ResetTimer()
@@ -190,7 +190,7 @@ func BenchmarkFullMiddlewareStack(b *testing.B) {
 		ExemptMethods: []string{"GET", "HEAD", "OPTIONS"},
 	})
 	csrfMW := csrf.NewMiddleware(csrfManager)
-	
+
 	fpConfig := fingerprint.Config{
 		Enabled:              true,
 		MaxIPsPerFingerprint: 5,
@@ -200,16 +200,16 @@ func BenchmarkFullMiddlewareStack(b *testing.B) {
 	}
 	tracker := fingerprint.NewTracker(fpConfig)
 	fpMW := fingerprint.NewMiddleware(tracker)
-	
+
 	challengeMgr := challenge.NewManager()
 	challengeConfig := challenge.Config{
-		Enabled:         true,
-		DefaultType:     challenge.TypeJavaScript,
-		Difficulty:      4,
-		WhitelistPaths:  []string{"/challenge/"},
+		Enabled:        true,
+		DefaultType:    challenge.TypeJavaScript,
+		Difficulty:     4,
+		WhitelistPaths: []string{"/challenge/"},
 	}
 	challengeMW := challenge.NewMiddleware(challengeMgr, challengeConfig)
-	
+
 	handler := requestid.Middleware(
 		csrfMW.Handler(
 			fpMW.Handler(
@@ -222,7 +222,7 @@ func BenchmarkFullMiddlewareStack(b *testing.B) {
 			),
 		),
 	)
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "192.168.1.1:1234"
 	req.Header.Set("User-Agent", "Mozilla/5.0")
@@ -244,7 +244,7 @@ func BenchmarkFullStackWithWAF(b *testing.B) {
 		ExemptMethods: []string{"GET", "HEAD", "OPTIONS"},
 	})
 	csrfMW := csrf.NewMiddleware(csrfManager)
-	
+
 	fpConfig := fingerprint.Config{
 		Enabled:              true,
 		MaxIPsPerFingerprint: 5,
@@ -252,7 +252,7 @@ func BenchmarkFullStackWithWAF(b *testing.B) {
 	}
 	tracker := fingerprint.NewTracker(fpConfig)
 	fpMW := fingerprint.NewMiddleware(tracker)
-	
+
 	challengeMgr := challenge.NewManager()
 	challengeConfig := challenge.Config{
 		Enabled:     true,
@@ -260,7 +260,7 @@ func BenchmarkFullStackWithWAF(b *testing.B) {
 		Difficulty:  4,
 	}
 	challengeMW := challenge.NewMiddleware(challengeMgr, challengeConfig)
-	
+
 	handler := requestid.Middleware(
 		csrfMW.Handler(
 			fpMW.Handler(
@@ -270,7 +270,7 @@ func BenchmarkFullStackWithWAF(b *testing.B) {
 			),
 		),
 	)
-	
+
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "192.168.1.1:1234"
 	req.Header.Set("User-Agent", "Mozilla/5.0")
@@ -292,7 +292,7 @@ func BenchmarkFullStackParallel(b *testing.B) {
 		ExemptMethods: []string{"GET", "HEAD", "OPTIONS"},
 	})
 	csrfMW := csrf.NewMiddleware(csrfManager)
-	
+
 	fpConfig := fingerprint.Config{
 		Enabled:              true,
 		MaxIPsPerFingerprint: 5,
@@ -300,7 +300,7 @@ func BenchmarkFullStackParallel(b *testing.B) {
 	}
 	tracker := fingerprint.NewTracker(fpConfig)
 	fpMW := fingerprint.NewMiddleware(tracker)
-	
+
 	handler := requestid.Middleware(
 		csrfMW.Handler(
 			fpMW.Handler(
@@ -308,7 +308,7 @@ func BenchmarkFullStackParallel(b *testing.B) {
 			),
 		),
 	)
-	
+
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			req := httptest.NewRequest("GET", "/", nil)
