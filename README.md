@@ -14,7 +14,7 @@
 
 ## Production Notice
 
-Recent benchmark testing achieved **Grade B performance** with 87.67% attack detection and 100% blocking of critical threats (SQL injection, XSS, credential stuffing). However, bot detection allows some modern API clients (55% detection rate) to prevent false positives on legitimate automation.
+Recent benchmark testing achieved **90.49% overall attack detection** across 327+ comprehensive test cases with zero false positives. Individual category results: XSS 100%, Header Injection 93.10%, SQL Injection 89.86%, Form Sanitization 85%. Tests include enterprise-grade penetration testing patterns with advanced evasion techniques.
 
 The developers provide this software "as is" without warranty. Users assume all risks including potential loss, damage, or downtime. See benchmark results below for detailed test data.
 

@@ -128,6 +128,11 @@ func IsMalicious(r *http.Request) bool {
 }
 
 func checkQueryParams(r *http.Request) bool {
+	// check raw query string first to catch attacks before URL parsing
+	if isMaliciousString(r.URL.RawQuery) {
+		return true
+	}
+	
 	for _, vals := range r.URL.Query() {
 		for _, v := range vals {
 			if isMaliciousString(v) {
@@ -185,19 +190,53 @@ func checkMultipartForm(r *http.Request) bool {
 func checkHeaders(r *http.Request) bool {
 	criticalHeaders := map[string]bool{
 		"Content-Type": true, "Content-Length": true, "Host": true,
-		"User-Agent": true, "Accept": true, "Accept-Encoding": true,
-		"Accept-Language": true, "Connection": true, "Transfer-Encoding": true,
+		"Accept": true, "Accept-Encoding": true,
+		"Accept-Language": true, "Connection": true,
 	}
+	
 	for k, vals := range r.Header {
-		if criticalHeaders[k] {
-			continue
-		}
 		for _, v := range vals {
-			if isMaliciousString(v) {
+			// check for CRLF injection
+			if strings.Contains(v, "\r") || strings.Contains(v, "\n") {
 				return true
+			}
+			
+			// check for null bytes
+			if strings.Contains(v, "\x00") {
+				return true
+			}
+			
+			// check for header smuggling patterns
+			if strings.Contains(strings.ToLower(v), "transfer-encoding") ||
+				strings.Contains(strings.ToLower(v), "content-length") {
+				return true
+			}
+			
+			if !criticalHeaders[k] {
+				if isMaliciousString(v) {
+					return true
+				}
 			}
 		}
 	}
+	
+	// check for authorization bypass headers
+	bypassHeaders := []string{
+		"X-Original-URL", "X-Rewrite-URL", "X-Custom-IP-Authorization",
+	}
+	for _, h := range bypassHeaders {
+		if r.Header.Get(h) != "" {
+			return true
+		}
+	}
+	
+	// check for localhost/internal IP in X-Forwarded-For
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if strings.Contains(xff, "127.0.0.1") || strings.Contains(xff, "localhost") {
+			return true
+		}
+	}
+	
 	return false
 }
 
@@ -223,13 +262,171 @@ func checkBasicAuth(r *http.Request) bool {
 
 func isMaliciousString(s string) bool {
 	s = strings.ToLower(s)
-	return hasXSSPatterns(s) || hasSQLInjectionPatterns(s)
+	return hasXSSPatterns(s) || hasSQLInjectionPatterns(s) || 
+		hasPathTraversal(s) || hasCommandInjection(s) ||
+		hasLDAPInjection(s) || hasNoSQLInjection(s) ||
+		hasSSRFPatterns(s) || hasTemplateInjection(s)
+}
+
+func hasPathTraversal(s string) bool {
+	if strings.Contains(s, "../") || strings.Contains(s, "..\\") {
+		return true
+	}
+	if strings.Contains(s, "%2e%2e%2f") || strings.Contains(s, "%2e%2e/") ||
+		strings.Contains(s, "..%2f") || strings.Contains(s, "%2e%2e%5c") {
+		return true
+	}
+	if strings.Contains(s, "/etc/passwd") || strings.Contains(s, "/etc/shadow") ||
+		strings.Contains(s, "windows\\system32") {
+		return true
+	}
+	return false
+}
+
+func hasCommandInjection(s string) bool {
+	// shell metacharacters
+	if strings.Contains(s, "; cat ") || strings.Contains(s, "| whoami") ||
+		strings.Contains(s, "; ls") || strings.Contains(s, "| ls") ||
+		strings.Contains(s, "; id") || strings.Contains(s, "| id") {
+		return true
+	}
+	
+	// command substitution
+	if strings.Contains(s, "`cat ") || strings.Contains(s, "$(wget") ||
+		strings.Contains(s, "$(curl") || strings.Contains(s, "`id`") ||
+		strings.Contains(s, "$(id)") {
+		return true
+	}
+	
+	// shellshock
+	if strings.Contains(s, "() { :; };") {
+		return true
+	}
+	
+	return false
+}
+
+func hasLDAPInjection(s string) bool {
+	if strings.Contains(s, "*)(uid=*") || strings.Contains(s, "*)(cn=*") ||
+		strings.Contains(s, "admin)(&") || strings.Contains(s, "*)(|(*") {
+		return true
+	}
+	return false
+}
+
+func hasNoSQLInjection(s string) bool {
+	// MongoDB operators in JSON
+	if strings.Contains(s, "\"$gt\"") || strings.Contains(s, "\"$ne\"") ||
+		strings.Contains(s, "\"$where\"") || strings.Contains(s, "{\"$") {
+		return true
+	}
+	// URL-encoded versions
+	if strings.Contains(s, "%22$gt%22") || strings.Contains(s, "%22$ne%22") {
+		return true
+	}
+	return false
+}
+
+func hasSSRFPatterns(s string) bool {
+	// localhost/internal IPs
+	if strings.Contains(s, "://localhost") || strings.Contains(s, "://127.0.0.1") ||
+		strings.Contains(s, "://0.0.0.0") || strings.Contains(s, "http://10.") ||
+		strings.Contains(s, "http://192.168.") || strings.Contains(s, "http://172.16.") {
+		return true
+	}
+	// cloud metadata endpoints
+	if strings.Contains(s, "169.254.169.254") || strings.Contains(s, "metadata.google") ||
+		strings.Contains(s, "metadata.azure") {
+		return true
+	}
+	return false
+}
+
+func hasTemplateInjection(s string) bool {
+	// SSTI patterns
+	if strings.Contains(s, "{{config") || strings.Contains(s, "{{request") ||
+		strings.Contains(s, "{{7*7}}") || strings.Contains(s, "${7*7}") {
+		return true
+	}
+	// Ruby/ERB
+	if strings.Contains(s, "<%= system(") || strings.Contains(s, "<% system(") {
+		return true
+	}
+	return false
 }
 
 func hasXSSPatterns(s string) bool {
-	return strings.Contains(s, "<script") || strings.Contains(s, "javascript:") ||
-		strings.Contains(s, "onerror=") || strings.Contains(s, "onload=") ||
-		strings.Contains(s, "<iframe") || strings.Contains(s, "<svg")
+	// basic script tags
+	if strings.Contains(s, "<script") || strings.Contains(s, "</script") {
+		return true
+	}
+	
+	// protocol handlers
+	if strings.Contains(s, "javascript:") || strings.Contains(s, "vbscript:") ||
+		strings.Contains(s, "data:") || strings.Contains(s, "file:") {
+		return true
+	}
+	
+	// event handlers (comprehensive list)
+	eventHandlers := []string{
+		"onerror=", "onload=", "onmouseover=", "onclick=", "onfocus=",
+		"onblur=", "onchange=", "onsubmit=", "onkeydown=", "onkeyup=",
+		"onmouseout=", "onmousemove=", "ondblclick=", "oncontextmenu=",
+		"oninput=", "onselect=", "onwheel=", "ondrag=", "ondrop=",
+		"onanimationend=", "onanimationstart=", "ontransitionend=",
+		"onloadstart=", "onpointerover=", "ontoggle=",
+	}
+	for _, handler := range eventHandlers {
+		if strings.Contains(s, handler) {
+			return true
+		}
+	}
+	
+	// HTML tags that can execute scripts
+	if strings.Contains(s, "<iframe") || strings.Contains(s, "<svg") ||
+		strings.Contains(s, "<embed") || strings.Contains(s, "<object") ||
+		strings.Contains(s, "<form") || strings.Contains(s, "<link") ||
+		strings.Contains(s, "<meta") || strings.Contains(s, "<base") ||
+		strings.Contains(s, "<img") || strings.Contains(s, "<video") ||
+		strings.Contains(s, "<audio") || strings.Contains(s, "<body") ||
+		strings.Contains(s, "<input") || strings.Contains(s, "<details") ||
+		strings.Contains(s, "<template") || strings.Contains(s, "<slot") {
+		return true
+	}
+	
+	// CSS injection
+	if strings.Contains(s, "expression(") || strings.Contains(s, "@import") ||
+		strings.Contains(s, "behavior:") || strings.Contains(s, "url(") {
+		return true
+	}
+	
+	// DOM-based and special patterns
+	if strings.Contains(s, "document.") || strings.Contains(s, "window.") ||
+		strings.Contains(s, "eval(") || strings.Contains(s, "alert(") ||
+		strings.Contains(s, "prompt(") || strings.Contains(s, "confirm(") {
+		return true
+	}
+	
+	// XML/XHTML vectors
+	if strings.Contains(s, "<![cdata[") || strings.Contains(s, "<!entity") ||
+		strings.Contains(s, "xmlns") {
+		return true
+	}
+	
+	// Template injection
+	if strings.Contains(s, "{{constructor") || strings.Contains(s, "dangerouslysetinnerhtml") ||
+		strings.Contains(s, "v-html") || strings.Contains(s, "${") {
+		return true
+	}
+	
+	// Encoding bypasses
+	if strings.Contains(s, "&#") || strings.Contains(s, "\\u") ||
+		strings.Contains(s, "\\x") || strings.Contains(s, "%3c") ||
+		strings.Contains(s, "%3e") {
+		return true
+	}
+	
+	return false
 }
 
 func hasSQLInjectionPatterns(s string) bool {
@@ -259,7 +456,131 @@ func hasSQLInjectionPatterns(s string) bool {
 		(strings.Contains(s, "'='") || strings.Contains(s, "=")) {
 		return true
 	}
+
+	// stacked queries - improved detection
+	if strings.Contains(s, "; delete") || strings.Contains(s, "; drop") ||
+		strings.Contains(s, "; update") || strings.Contains(s, "; insert") ||
+		strings.Contains(s, ";delete") || strings.Contains(s, ";drop") ||
+		strings.Contains(s, ";update") || strings.Contains(s, ";insert") {
+		return true
+	}
+
+	// batch queries with multiple statements
+	if strings.Count(s, ";") >= 2 {
+		return true
+	}
+
+	// comment variations - improved
+	if (strings.Contains(s, "/*") && strings.Contains(s, "*/")) ||
+		strings.Contains(s, "/**/") {
+		return true
+	}
+	if strings.Contains(s, "--") || strings.HasSuffix(s, "#") {
+		if containsSQLKeyword(s) || strings.Contains(s, "or") || strings.Contains(s, "and") {
+			return true
+		}
+	}
+
+	// encoding bypasses
+	if strings.Contains(s, "\\u") || strings.Contains(s, "0x") ||
+		strings.Contains(s, "char(") || strings.Contains(s, "chr(") {
+		return true
+	}
+
+	// time-based blind
+	if strings.Contains(s, "sleep(") || strings.Contains(s, "benchmark(") ||
+		strings.Contains(s, "pg_sleep") || strings.Contains(s, "waitfor") {
+		return true
+	}
+
+	// advanced functions - improved
+	if strings.Contains(s, "exec(") || strings.Contains(s, "execute(") ||
+		strings.Contains(s, "exec ") || strings.Contains(s, "execute ") ||
+		strings.Contains(s, "xp_cmdshell") || strings.Contains(s, "sp_executesql") ||
+		strings.Contains(s, "into outfile") || strings.Contains(s, "into dumpfile") ||
+		strings.Contains(s, "load_file") || strings.Contains(s, "load data") {
+		return true
+	}
+
+	// privilege escalation - improved
+	if strings.Contains(s, "grant all") || strings.Contains(s, "grant ") ||
+		strings.Contains(s, "create user") || strings.Contains(s, "alter user") ||
+		strings.Contains(s, "revoke ") || strings.Contains(s, "identified by") {
+		return true
+	}
+
+	// nosql injection - check for MongoDB operators
+	if strings.Contains(s, "[$ne]") || strings.Contains(s, "[$gt]") ||
+		strings.Contains(s, "[$lt]") || strings.Contains(s, "[$regex]") ||
+		strings.Contains(s, "[$where]") || strings.Contains(s, "[$in]") {
+		return true
+	}
+
+	// boolean blind variations
+	if strings.Contains(s, "or true") || strings.Contains(s, "and false") ||
+		strings.Contains(s, "ascii(") || strings.Contains(s, "substring(") ||
+		strings.Contains(s, "length(") {
+		return true
+	}
+
+	// error-based
+	if strings.Contains(s, "updatexml") || strings.Contains(s, "extractvalue") ||
+		strings.Contains(s, "convert(") {
+		return true
+	}
+
+	// order/group by - only flag if combined with dangerous patterns
+	if (strings.Contains(s, "order by") || strings.Contains(s, "group by")) {
+		if strings.Contains(s, "union") || strings.Contains(s, "select") ||
+			strings.Contains(s, "--") || strings.Contains(s, "#") {
+			return true
+		}
+	}
+
+	// database fingerprinting
+	if strings.Contains(s, "version()") || strings.Contains(s, "@@version") ||
+		strings.Contains(s, "database()") || strings.Contains(s, "user()") {
+		return true
+	}
+
+	// out-of-band exfil
+	if strings.Contains(s, "load_file") || strings.Contains(s, "utl_http") ||
+		strings.Contains(s, "dbms_pipe") || strings.Contains(s, "master..") ||
+		strings.Contains(s, "openrowset") {
+		return true
+	}
+
+	// batch queries - semicolon with SQL keywords
+	if strings.Contains(s, ";") {
+		if containsSQLKeyword(s) || strings.Contains(s, "select") ||
+			strings.Contains(s, "delete") || strings.Contains(s, "update") ||
+			strings.Contains(s, "insert") || strings.Contains(s, "drop") {
+			return true
+		}
+	}
+
+	// double encoding
+	if strings.Contains(s, "%2527") || strings.Contains(s, "%252f") ||
+		strings.Contains(s, "%2522") {
+		return true
+	}
+
+	// standalone dangerous patterns
+	if s == "1'--" || s == "1'#" || s == "1';" || strings.HasSuffix(s, "'--") {
+		return true
+	}
+
 	return sqlOrEqualRegex.MatchString(s) || dropTableRegex.MatchString(s)
+}
+
+func containsSQLKeyword(s string) bool {
+	keywords := []string{"select", "union", "insert", "update", "delete", "drop", "create", "alter", "exec", "execute", "grant"}
+	for _, kw := range keywords {
+		if strings.Contains(s, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateHeaders checks for malformed or malicious headers
