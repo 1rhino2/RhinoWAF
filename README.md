@@ -28,7 +28,7 @@ Modern Web Application Firewall (WAF) built with Go, featuring DDoS protection, 
 
 ## Production Readiness Notice
 
-RhinoWAF is under active development. Recent testing shows Grade B performance with 87.67% attack detection and 2.60% false positive rate. While the WAF successfully blocks 100% of critical attacks (SQL injection, XSS, credential stuffing), some edge cases remain:
+RhinoWAF is under active development. Recent testing shows Grade B performance with 87.67% attack detection and 2.60% false positive rate. While the WAF successfully blocks most of critical attacks (SQL injection, XSS, credential stuffing), some edge cases remain:
 
 - Bot detection may allow sophisticated bots using modern API client signatures
 - High-traffic scenarios may experience minor false positives (3.8% during peak loads)
@@ -72,6 +72,7 @@ This project is developed collaboratively by a small team, allowing for rapid it
 
 - **DDoS Protection**: Rate limiting, burst detection, Slowloris mitigation, reputation scoring
 - **IPv6 Support**: Full IPv6 and dual-stack support for all security features (v2.5)
+- **Multi-VHost Support**: Single instance routes multiple domains to different backends (v2.6)
 - **Input Sanitization**: SQL injection, XSS, path traversal, command injection blocking
 - **HTTP Request Smuggling Detection**: CL.TE, TE.CL, TE.TE, header obfuscation, protocol violations
 - **IP Management**: 60+ per-IP control fields with priority-based rule matching

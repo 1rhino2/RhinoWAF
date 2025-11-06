@@ -1,0 +1,20 @@
+{
+  "backends": [
+    {
+      "domain": "api.example.com",
+      "backend": "http://localhost:3000",
+      "enabled": true
+    },
+    {
+      "domain": "app.example.com",
+      "backend": "http://localhost:4000",
+      "enabled": true
+    },
+    {
+      "domain": "admin.example.com",
+      "backend": "http://localhost:5000",
+      "enabled": true
+    }
+  ],
+  "default_backend": "http://localhost:9000"
+}

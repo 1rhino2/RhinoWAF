@@ -22,6 +22,7 @@ import (
 	"rhinowaf/waf/reload"
 	"rhinowaf/waf/reputation"
 	"rhinowaf/waf/requestid"
+	"rhinowaf/waf/vhost"
 	"rhinowaf/waf/webhook"
 	"syscall"
 	"time"
@@ -100,6 +101,16 @@ func main() {
 		log.Printf("Warning: Could not load GeoIP database - %v (geolocation blocking will be unavailable)", err)
 	}
 
+	// Multi-vhost backend configuration
+	vhostMgr, err := vhost.NewVHostManager("./config/backends.json")
+	if err != nil {
+		log.Printf("Warning: Could not initialize multi-vhost manager - %v (falling back to single backend)", err)
+		vhostMgr = nil
+	} else {
+		stats := vhostMgr.GetStats()
+		log.Printf("Multi-vhost enabled: %d domains configured", stats["total_backends"])
+	}
+
 	// hot-reload setup so we don't need to restart on config changes
 	reloadMgr, err := reload.NewManager(reload.Config{
 		IPRulesPath:  "./config/ip_rules.json",
@@ -127,6 +138,11 @@ func main() {
 					log.Printf("Configuration reload failed: %v", err)
 				} else {
 					log.Println("All configurations reloaded successfully")
+				}
+			}
+			if vhostMgr != nil {
+				if err := vhostMgr.Reload("./config/backends.json"); err != nil {
+					log.Printf("VHost reload failed: %v", err)
 				}
 			}
 		}
@@ -262,20 +278,35 @@ func main() {
 	mux.Handle("/fingerprint/collect", importLocalhost(http.HandlerFunc(fingerprintMW.CollectHandler)))
 	mux.Handle("/fingerprint/stats", importLocalhost(http.HandlerFunc(fingerprintMW.StatsHandler)))
 	mux.Handle("/csrf/token", importLocalhost(http.HandlerFunc(csrfMW.TokenHandler)))
+	
+	// VHost stats endpoint
+	if vhostMgr != nil {
+		mux.Handle("/vhost/stats", importLocalhost(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			stats := vhostMgr.GetStats()
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(stats)
+		})))
+	}
 
 	// Challenge verification endpoint (still public, but can restrict if needed)
 	mux.HandleFunc("/challenge/verify", challengeMW.VerifyHandler)
 
-	// Proxy all requests to backend (except fingerprint/challenge endpoints)
-
-	// Public endpoints (can restrict more if needed)
-	mux.HandleFunc("/", waf.AdaptiveProtect(handlers.Home))
-	mux.HandleFunc("/api/", waf.AdaptiveProtect(handlers.APIHandler))
-	mux.HandleFunc("/about", waf.AdaptiveProtect(handlers.AboutHandler))
-	mux.HandleFunc("/contact", waf.AdaptiveProtect(handlers.ContactHandler))
-	mux.HandleFunc("/login", waf.AdaptiveProtect(handlers.Login))
-	mux.HandleFunc("/echo", waf.AdaptiveProtect(handlers.Echo))
-	mux.Handle("/flood", importLocalhost(http.HandlerFunc(handlers.Flood)))
+	// Multi-vhost routing or fallback to default handlers
+	if vhostMgr != nil {
+		// Use vhost manager for routing to different backends
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			vhostMgr.ServeHTTP(w, r)
+		})
+	} else {
+		// Fallback to single backend with static handlers
+		mux.HandleFunc("/", waf.AdaptiveProtect(handlers.Home))
+		mux.HandleFunc("/api/", waf.AdaptiveProtect(handlers.APIHandler))
+		mux.HandleFunc("/about", waf.AdaptiveProtect(handlers.AboutHandler))
+		mux.HandleFunc("/contact", waf.AdaptiveProtect(handlers.ContactHandler))
+		mux.HandleFunc("/login", waf.AdaptiveProtect(handlers.Login))
+		mux.HandleFunc("/echo", waf.AdaptiveProtect(handlers.Echo))
+		mux.Handle("/flood", importLocalhost(http.HandlerFunc(handlers.Flood)))
+	}
 
 	// Apply middleware layers: request ID -> oauth2 -> csrf -> fingerprint -> challenge -> routes
 	handler := requestid.Middleware(oauth2Handler.Handle(csrfMW.Handler(fingerprintMW.Handler(challengeMW.Handler(mux)))))
