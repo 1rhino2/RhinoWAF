@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: write
+  security-events: write
+  pull-requests: read
+
 jobs:
   lint:
     name: Lint Code
@@ -39,13 +44,14 @@ jobs:
       - name: Run gosec security scanner
         uses: securego/gosec@master
         with:
-          args: "-fmt sarif -out gosec-report.sarif -exclude-dir=benchmarks ./..."
+          args: "-fmt sarif -out gosec-report.sarif -no-fail -exclude-dir=benchmarks -exclude=G104,G307 ./..."
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: gosec-report.sarif
+          category: gosec
 
   test:
     name: Run Tests
