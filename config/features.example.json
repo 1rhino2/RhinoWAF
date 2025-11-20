@@ -1,0 +1,97 @@
+{
+  "version": "2.4.0",
+  "last_modified": "2025-10-28T00:00:00Z",
+  "ddos_protection": {
+    "enabled": true,
+    "rate_limit": 100,
+    "burst_limit": 150,
+    "concurrent_connections": 10,
+    "slowloris_timeout": 30,
+    "reputation_threshold": 3
+  },
+  "smuggling_detection": {
+    "enabled": true,
+    "strict_mode": true,
+    "log_violations": true,
+    "block_threshold": 4,
+    "detect_cl_te": true,
+    "detect_te_cl": true,
+    "detect_multiple_headers": true,
+    "detect_obfuscation": true,
+    "detect_invalid_values": true,
+    "detect_protocol_violations": true
+  },
+  "challenge_system": {
+    "enabled": false,
+    "default_type": "javascript",
+    "javascript_delay": 2,
+    "pow_difficulty": 4,
+    "session_ttl": 3600,
+    "cookie_secure": true,
+    "cookie_samesite": "Strict"
+  },
+  "fingerprinting": {
+    "enabled": false,
+    "require_canvas": false,
+    "require_webgl": false,
+    "collect_fonts": false,
+    "collect_hardware": false,
+    "block_duplicate_fingerprints": false,
+    "max_ips_per_fingerprint": 5
+  },
+  "geolocation": {
+    "enabled": false,
+    "block_countries": [],
+    "challenge_countries": [],
+    "block_proxies": false,
+    "block_tor": false,
+    "block_hosting": false
+  },
+  "input_validation": {
+    "enabled": true,
+    "block_sql_injection": true,
+    "block_xss": true,
+    "block_path_traversal": true,
+    "block_command_injection": true,
+    "block_ssrf": true,
+    "block_xxe": true,
+    "sanitize_all": true
+  },
+  "protocol_security": {
+    "require_https": false,
+    "min_tls_version": "1.2",
+    "allow_http2": true,
+    "block_http09": true,
+    "max_url_length": 2048,
+    "max_header_count": 50,
+    "max_body_size": 10485760
+  },
+  "bot_management": {
+    "enabled": true,
+    "allow_search_engines": true,
+    "block_scrapers": true,
+    "block_headless": false,
+    "require_user_agent": false,
+    "block_suspicious_ua": true
+  },
+  "logging": {
+    "enabled": true,
+    "log_level": "info",
+    "log_attacks": true,
+    "log_challenges": true,
+    "log_blocks": true,
+    "rotation_enabled": true,
+    "max_size_mb": 100,
+    "max_age_days": 30
+  },
+  "metrics": {
+    "enabled": true,
+    "endpoint": "/metrics",
+    "collect_detailed": true
+  },
+  "backend": {
+    "proxy_url": "http://localhost:9000",
+    "timeout_seconds": 30,
+    "max_idle_conns": 100
+  }
+}

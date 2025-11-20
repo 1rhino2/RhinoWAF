@@ -1,0 +1,221 @@
+{
+  "version": "2.0",
+  "last_modified": "2025-10-18T00:00:00Z",
+  "banned_ips": [
+    {
+      "ip": "192.168.1.100",
+      "type": "ban",
+      "reason": "Repeated attacks",
+      "created_at": "2025-10-18T00:00:00Z",
+      "auto_ban": true
+    }
+  ],
+  "whitelisted_ips": [
+    {
+      "ip": "10.0.0.1",
+      "type": "whitelist",
+      "reason": "Internal admin",
+      "created_at": "2025-10-18T00:00:00Z",
+      "whitelist_override": true,
+      "notes": "Main admin IP - bypass all checks"
+    },
+    {
+      "ip": "203.0.113.50",
+      "type": "whitelist",
+      "reason": "Partner API",
+      "created_at": "2025-10-18T00:00:00Z",
+      "allowed_paths": ["/api/*", "/webhook/*"],
+      "allowed_methods": ["POST", "GET"],
+      "rate_limit_override": 10000,
+      "notes": "Partner integration - API access only"
+    }
+  ],
+  "monitored_ips": [
+    {
+      "ip": "198.51.100.25",
+      "type": "monitor",
+      "reason": "Suspicious activity",
+      "created_at": "2025-10-18T00:00:00Z",
+      "tags": ["suspicious", "high-volume"]
+    }
+  ],
+  "challenged_ips": [
+    {
+      "ip": "192.0.2.150",
+      "type": "challenge",
+      "reason": "Multiple failed logins",
+      "created_at": "2025-10-18T00:00:00Z",
+      "require_javascript": true,
+      "allowed_paths": ["/login", "/"],
+      "blocked_paths": ["/admin/*"],
+      "max_concurrent_conns": 5
+    }
+  ],
+  "throttled_ips": [
+    {
+      "ip": "198.51.100.100",
+      "type": "throttle",
+      "reason": "High request rate",
+      "created_at": "2025-10-18T00:00:00Z",
+      "throttle_percent": 50,
+      "expires_at": "2025-10-19T00:00:00Z",
+      "min_request_interval": 1000,
+      "max_burst_size": 10,
+      "burst_window_ms": 5000
+    },
+    {
+      "ip": "203.0.113.200",
+      "type": "throttle",
+      "reason": "Business hours only access",
+      "created_at": "2025-10-18T00:00:00Z",
+      "allowed_hours": [9, 10, 11, 12, 13, 14, 15, 16, 17],
+      "allowed_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+      "timezone": "America/New_York",
+      "throttle_percent": 70,
+      "notes": "Limited access outside business hours"
+    },
+    {
+      "ip": "192.0.2.75",
+      "type": "throttle",
+      "reason": "API consumer with restrictions",
+      "created_at": "2025-10-18T00:00:00Z",
+      "rate_limit_override": 500,
+      "allowed_paths": ["/api/v1/*"],
+      "blocked_paths": ["/api/v2/*", "/admin/*"],
+      "allowed_methods": ["GET", "POST"],
+      "blocked_methods": ["DELETE", "PUT"],
+      "required_headers": ["X-API-Key", "X-Client-ID"],
+      "allowed_content_types": ["application/json", "application/x-www-form-urlencoded"],
+      "max_upload_size": 5242880,
+      "max_url_length": 2048,
+      "require_https": true,
+      "min_tls_version": "1.2",
+      "rate_limit_by_path": {
+        "/api/v1/search": 100,
+        "/api/v1/upload": 10,
+        "/api/v1/export": 5
+      }
+    },
+    {
+      "ip": "198.51.100.42",
+      "type": "throttle",
+      "reason": "Mobile app client",
+      "created_at": "2025-10-18T00:00:00Z",
+      "allowed_user_agents": ["*MyApp/*", "*iOS*", "*Android*"],
+      "blocked_user_agents": ["*bot*", "*crawler*", "*scraper*"],
+      "require_cookies": ["session_id", "device_id"],
+      "max_session_duration": 86400,
+      "require_valid_session": true,
+      "block_headless": true,
+      "block_bots": true
+    },
+    {
+      "ip": "203.0.113.88",
+      "type": "throttle",
+      "reason": "File upload restrictions",
+      "created_at": "2025-10-18T00:00:00Z",
+      "allowed_file_exts": [".jpg", ".png", ".pdf", ".docx"],
+      "blocked_file_exts": [".php", ".exe", ".sh", ".bat"],
+      "max_upload_size": 10485760,
+      "allowed_content_types": ["image/*", "application/pdf", "application/msword"],
+      "blocked_content_types": ["application/x-php", "application/x-executable"]
+    }
+  ],
+  "geo_rules": [
+    {
+      "country_code": "CN",
+      "action": "block",
+      "reason": "High abuse rate",
+      "created_at": "2025-10-18T00:00:00Z",
+      "priority": 10,
+      "allowed_paths": ["/api/public/*"],
+      "notes": "Block China except public API"
+    },
+    {
+      "country_code": "RU",
+      "action": "challenge",
+      "reason": "Require verification",
+      "created_at": "2025-10-18T00:00:00Z",
+      "priority": 5,
+      "throttle_percent": 60
+    },
+    {
+      "country_code": "US",
+      "action": "allow",
+      "reason": "Primary market",
+      "created_at": "2025-10-18T00:00:00Z",
+      "priority": 1
+    },
+    {
+      "country_code": "KP",
+      "action": "block",
+      "reason": "Sanctions compliance",
+      "created_at": "2025-10-18T00:00:00Z",
+      "priority": 100
+    }
+  ],
+  "asn_rules": [
+    {
+      "asn": "AS13335",
+      "organization": "Cloudflare",
+      "action": "allow",
+      "reason": "CDN traffic",
+      "created_at": "2025-10-18T00:00:00Z"
+    },
+    {
+      "asn": "AS12345",
+      "organization": "Malicious Hosting",
+      "action": "block",
+      "reason": "Known attack source",
+      "created_at": "2025-10-18T00:00:00Z",
+      "throttle_percent": 90
+    }
+  ],
+  "global_rules": {
+    "default_action": "allow",
+    "block_proxies": false,
+    "block_tor": true,
+    "block_hosting": false,
+    "blocked_countries": ["KP", "IR", "SY"],
+    "allowed_countries": [],
+    "require_auth_countries": ["CN", "RU", "VN"],
+    "challenge_countries": ["BR", "IN", "PK"],
+    "max_requests_per_ip": 1000,
+    "max_connections_per_ip": 50,
+    "block_empty_user_agent": true,
+    "block_suspicious_ua": true,
+    "global_rate_limit_window": 60,
+    "block_known_bad_bots": true,
+    "allow_search_engine_bots": true,
+    "require_valid_user_agent": true,
+    "max_url_length": 4096,
+    "max_header_count": 50,
+    "max_cookie_count": 30,
+    "block_sql_injection": true,
+    "block_xss": true,
+    "block_path_traversal": true,
+    "block_command_injection": true,
+    "block_xml_injection": true,
+    "block_ssrf": true,
+    "block_ldap_injection": true,
+    "block_template_injection": true,
+    "require_https": false,
+    "require_modern_tls": true,
+    "block_old_http_versions": true,
+    "max_request_body_size": 10485760,
+    "allowed_methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+    "blocked_paths": ["/phpmyadmin/*", "/.git/*", "/.env", "/wp-admin/*"],
+    "rate_limit_by_endpoint": true,
+    "enable_geo_fencing": true,
+    "enable_asn_blocking": true,
+    "log_all_requests": false,
+    "log_blocked_only": true,
+    "enable_challenge_mode": true,
+    "challenge_type": "js",
+    "challenge_difficulty": 5,
+    "session_timeout": 3600,
+    "enable_fingerprinting": true,
+    "block_repeated_fingerprint": false,
+    "max_fingerprint_reuse": 3
+  }
+}
