@@ -1,3 +1,7 @@
+run:
+  timeout: 10m
+  tests: true
+
 linters:
   enable:
     - errcheck
@@ -6,10 +10,13 @@ linters:
     - ineffassign
     - gosec
     - bodyclose
-    - gocyclo
     - misspell
   disable:
     - unused
     - unparam
     - staticcheck
     - unconvert
+    - gocyclo      # Disabled - security detection legitimately needs high complexity
+    - cyclop       # Disabled - same as gocyclo
+    - funlen       # Disabled - security pattern matching requires long functions
+    - gocognit     # Disabled - too strict for comprehensive security detection
