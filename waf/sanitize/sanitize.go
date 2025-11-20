@@ -424,6 +424,7 @@ func hasOGNLInjection(s string) bool {
 	return false
 }
 
+//nolint:gocyclo // XSS detection requires comprehensive pattern matching
 func hasXSSPatterns(s string) bool {
 	// basic script tags
 	if strings.Contains(s, "<script") || strings.Contains(s, "</script") {
@@ -498,6 +499,7 @@ func hasXSSPatterns(s string) bool {
 	return false
 }
 
+//nolint:gocyclo // SQL injection detection requires extensive pattern checking
 func hasSQLInjectionPatterns(s string) bool {
 	if strings.Contains(s, "union select") || strings.Contains(s, "union all select") {
 		return true

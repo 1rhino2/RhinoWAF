@@ -200,8 +200,8 @@ func BenchmarkThroughput(b *testing.B) {
 			req.RemoteAddr = "192.168.1.1:1234"
 			w := httptest.NewRecorder()
 			handler(w, req)
-			io.ReadAll(w.Result().Body)
-			w.Result().Body.Close()
+			_, _ = io.ReadAll(w.Result().Body)
+			_ = w.Result().Body.Close()
 		}
 	})
 }
