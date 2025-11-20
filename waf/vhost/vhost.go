@@ -72,7 +72,7 @@ func (m *VHostManager) initProxies() error {
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
-		
+
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("Backend error for %s -> %s: %v", backend.Domain, backend.Backend, err)
 			http.Error(w, "Backend unavailable", http.StatusBadGateway)
@@ -173,8 +173,8 @@ func (m *VHostManager) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_backends":  len(domains),
-		"configured_domains": domains,
+		"total_backends":      len(domains),
+		"configured_domains":  domains,
 		"has_default_backend": m.config.DefaultBackend != "",
 	}
 }

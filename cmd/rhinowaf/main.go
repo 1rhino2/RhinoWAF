@@ -278,7 +278,7 @@ func main() {
 	mux.Handle("/fingerprint/collect", importLocalhost(http.HandlerFunc(fingerprintMW.CollectHandler)))
 	mux.Handle("/fingerprint/stats", importLocalhost(http.HandlerFunc(fingerprintMW.StatsHandler)))
 	mux.Handle("/csrf/token", importLocalhost(http.HandlerFunc(csrfMW.TokenHandler)))
-	
+
 	// VHost stats endpoint
 	if vhostMgr != nil {
 		mux.Handle("/vhost/stats", importLocalhost(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
