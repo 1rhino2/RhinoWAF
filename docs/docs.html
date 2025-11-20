@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RhinoWAF Documentation - Installation, configuration, and features">
+    <title>Documentation - RhinoWAF</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <div class="logo">RhinoWAF</div>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="features.html">Features</a></li>
+                    <li><a href="benchmarks.html">Benchmarks</a></li>
+                    <li><a href="docs.html">Docs</a></li>
+                    <li><a href="comparison.html">Compare</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF">GitHub</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <section class="page-header">
+        <div class="container">
+            <h1>Documentation</h1>
+            <p>Complete guide to RhinoWAF installation and configuration</p>
+        </div>
+    </section>
+
+    <section class="content">
+        <div class="container">
+            <nav class="doc-nav">
+                <h3>Quick Links</h3>
+                <ul>
+                    <li><a href="#what-is">What is RhinoWAF?</a></li>
+                    <li><a href="#install">Installation</a></li>
+                    <li><a href="#config">Configuration</a></li>
+                    <li><a href="#features-doc">Features</a></li>
+                    <li><a href="#production">Production Setup</a></li>
+                    <li><a href="#troubleshooting">Troubleshooting</a></li>
+                </ul>
+            </nav>
+
+            <div id="what-is" class="doc-section">
+                <h2>What is RhinoWAF?</h2>
+                <p>RhinoWAF is a self-hosted web application firewall written in Go. It protects applications at the application layer (L7) from common attacks, bot traffic, and abuse.</p>
+                
+                <h3>Important Notes</h3>
+                <p><strong>Layer 7 Protection:</strong> RhinoWAF handles application-layer (L7) protection including SQL injection, XSS, bot detection, and rate limiting. For volumetric network DDoS attacks (100gbps+ floods at L3/L4), you need upstream mitigation like Cloudflare or ISP-level protection.</p>
+                
+                <h3>Key Features</h3>
+                <ul>
+                    <li>DDoS protection with rate limiting and Slowloris detection</li>
+                    <li>Browser fingerprinting for bot network detection</li>
+                    <li>Challenge system (JavaScript, Proof-of-Work, hCaptcha, Turnstile)</li>
+                    <li>HTTP smuggling detection (17 violation types)</li>
+                    <li>CSRF protection with multiple patterns</li>
+                    <li>Full IPv6 support with dual-stack operation</li>
+                    <li>Advanced IP management (119+ config fields)</li>
+                    <li>GeoIP and ASN-based blocking</li>
+                </ul>
+            </div>
+
+            <div id="install" class="doc-section">
+                <h2>Installation</h2>
+                
+                <h3>Build from Source</h3>
+                <pre><code>git clone https://github.com/1rhino2/RhinoWAF.git
+cd RhinoWAF
+make build
+./rhinowaf</code></pre>
+
+                <h3>Or Download Source Release</h3>
+                <pre><code>curl -LO https://github.com/1rhino2/RhinoWAF/archive/refs/tags/v1.1.0.tar.gz
+tar -xzf v1.1.0.tar.gz
+cd RhinoWAF-1.1.0
+make build
+./rhinowaf</code></pre>
+
+                <h3>Docker</h3>
+                <pre><code>docker build -t rhinowaf .
+docker run -d -p 8080:8080 \
+  -v $(pwd)/config:/app/config \
+  -v $(pwd)/logs:/app/logs \
+  --name rhinowaf \
+  rhinowaf</code></pre>
+
+                <h3>Kubernetes</h3>
+                <p>See <a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/INSTALLATION.md">installation guide</a> for Kubernetes deployment examples.</p>
+            </div>
+                <p>Create <code>/etc/systemd/system/rhinowaf.service</code>:</p>
+                <pre><code>[Unit]
+Description=RhinoWAF Web Application Firewall
+After=network.target
+
+[Service]
+Type=simple
+User=rhinowaf
+WorkingDirectory=/opt/rhinowaf
+ExecStart=/usr/local/bin/rhinowaf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+                <pre><code>sudo systemctl enable rhinowaf
+sudo systemctl start rhinowaf
+sudo systemctl status rhinowaf</code></pre>
+            </div>
+
+            <div id="config" class="doc-section">
+                <h2>Configuration</h2>
+                
+                <h3>Configuration Files</h3>
+                <ul>
+                    <li><code>config/features.json</code> - Main feature toggles and WAF policies</li>
+                    <li><code>config/ip_rules.json</code> - IP whitelist/blacklist rules</li>
+                    <li><code>config/geoip.json</code> - GeoIP database for country blocking</li>
+                </ul>
+
+                <h3>Main Configuration</h3>
+                <p>Edit <code>cmd/rhinowaf/main.go</code> for core settings:</p>
+                <pre><code>// Challenge System
+challengeConfig := challenge.Config{
+    Enabled:         true,
+    DefaultType:     challenge.TypeJavaScript,
+    Difficulty:      5,
+    WhitelistPaths:  []string{"/static/"},
+}
+
+// Fingerprinting
+fingerprintConfig := fingerprint.Config{
+    Enabled:              true,
+    MaxIPsPerFingerprint: 5,
+    BlockOnExceed:        true,
+    RequireClientData:    true,
+}</code></pre>
+
+                <h3>IP Rules</h3>
+                <p>Example <code>config/ip_rules.json</code>:</p>
+                <pre><code>{
+  "banned_ips": [
+    {
+      "ip": "203.0.113.42",
+      "type": "ban",
+      "reason": "Repeated attacks"
+    }
+  ],
+  "whitelisted_ips": [
+    {
+      "ip": "10.0.0.1",
+      "type": "whitelist",
+      "whitelist_override": true
+    }
+  ],
+  "global_rules": {
+    "max_requests_per_ip": 100,
+    "max_connections_per_ip": 10,
+    "block_tor": true,
+    "block_proxies": true
+  }
+}</code></pre>
+            </div>
+
+            <div id="features-doc" class="doc-section">
+                <h2>Feature Documentation</h2>
+                
+                <h3>Challenge System</h3>
+                <p>Multiple verification methods to ensure legitimate users:</p>
+                <ul>
+                    <li><strong>JavaScript Challenge:</strong> Basic bot filtering with 2-second delay</li>
+                    <li><strong>Proof-of-Work:</strong> Computational puzzle (configurable difficulty 1-6)</li>
+                    <li><strong>hCaptcha:</strong> Privacy-focused CAPTCHA (requires API keys)</li>
+                    <li><strong>Turnstile:</strong> Cloudflare's invisible challenge</li>
+                </ul>
+                <p><strong>Setup hCaptcha/Turnstile:</strong></p>
+                <pre><code>export HCAPTCHA_SITE_KEY="your-site-key"
+export HCAPTCHA_SECRET="your-secret"
+
+export TURNSTILE_SITE_KEY="your-site-key"
+export TURNSTILE_SECRET="your-secret"</code></pre>
+
+                <h3>Browser Fingerprinting</h3>
+                <p>Detects bot networks by tracking browser characteristics:</p>
+                <ul>
+                    <li>Canvas fingerprint (unique rendering signature)</li>
+                    <li>WebGL fingerprint (GPU vendor and renderer)</li>
+                    <li>Font detection via canvas measurement</li>
+                    <li>Hardware info (CPU cores, memory, screen)</li>
+                    <li>Blocks when multiple IPs share fingerprints</li>
+                </ul>
+                <p><strong>Configuration:</strong></p>
+                <pre><code>fingerprintConfig := fingerprint.Config{
+    MaxIPsPerFingerprint: 5,     // Max IPs per fingerprint
+    SuspiciousThreshold:  3,     // Flag at 3+ IPs
+    BlockOnExceed:        true,  // Block when exceeded
+    RequireClientData:    true,  // Require canvas/WebGL
+}</code></pre>
+
+                <h3>HTTP Smuggling Detection</h3>
+                <p>Detects 17 types of smuggling attacks:</p>
+                <ul>
+                    <li>CL.TE and TE.CL conflicts</li>
+                    <li>Multiple Content-Length headers</li>
+                    <li>Obfuscated headers</li>
+                    <li>Invalid protocol versions</li>
+                </ul>
+                <p>Automatic protection enabled by default.</p>
+
+                <h3>CSRF Protection</h3>
+                <p>Two protection patterns available:</p>
+                <ul>
+                    <li><strong>Server-side validation:</strong> Tokens stored in memory</li>
+                    <li><strong>Double-submit cookie:</strong> Stateless pattern</li>
+                </ul>
+                <p>Get CSRF token: <code>GET /csrf/token</code></p>
+
+                <h3>IPv6 Support</h3>
+                <p>Full dual-stack operation:</p>
+                <ul>
+                    <li>IPv6 address parsing and validation</li>
+                    <li>CIDR matching for IPv6 ranges</li>
+                    <li>Private range detection (ULA, link-local)</li>
+                    <li>IPv6-aware rate limiting</li>
+                    <li>Performance: 43.98ns per IPv6 check</li>
+                </ul>
+
+                <h3>IP Management</h3>
+                <p>Advanced control with 119+ fields per IP:</p>
+                <ul>
+                    <li>Time-based restrictions (business hours, specific days)</li>
+                    <li>Path and method controls (allow/block endpoints)</li>
+                    <li>Request pattern matching (query params, headers)</li>
+                    <li>Content controls (file types, sizes)</li>
+                    <li>Protocol requirements (HTTPS, TLS versions)</li>
+                </ul>
+
+                <h3>GeoIP Blocking</h3>
+                <p>Country-based access control:</p>
+                <pre><code>{
+  "geo_rules": [
+    {
+      "country_code": "KP",
+      "action": "block",
+      "reason": "Sanctioned country"
+    },
+    {
+      "country_code": "CN",
+      "action": "challenge",
+      "throttle_percent": 40
+    }
+  ]
+}</code></pre>
+            </div>
+
+            <div id="production" class="doc-section">
+                <h2>Production Setup</h2>
+                
+                <h3>Pre-Deployment Checklist</h3>
+                <ul>
+                    <li>Review configuration in main.go</li>
+                    <li>Configure CAPTCHA API keys if using hCaptcha/Turnstile</li>
+                    <li>Set geo rules for country blocking</li>
+                    <li>Test challenge pages in browser</li>
+                    <li>Ensure log directory is writable</li>
+                    <li>Load test under expected traffic</li>
+                </ul>
+
+                <h3>Security Best Practices</h3>
+                <ul>
+                    <li>Use HTTPS (put WAF behind nginx/caddy with TLS)</li>
+                    <li>Rotate CAPTCHA keys periodically</li>
+                    <li>Implement log rotation</li>
+                    <li>Set up monitoring and alerts</li>
+                    <li>Regular backups of configs</li>
+                    <li>Keep RhinoWAF updated</li>
+                </ul>
+
+                <h3>Monitoring</h3>
+                <p>Built-in Prometheus metrics at <code>/metrics</code>:</p>
+                <pre><code>curl http://localhost:8080/metrics | grep rhinowaf</code></pre>
+                
+                <p>Check fingerprint statistics:</p>
+                <pre><code>curl http://localhost:8080/fingerprint/stats</code></pre>
+
+                <h3>Performance Tuning</h3>
+                <p>For high-traffic sites:</p>
+                <pre><code>fingerprintConfig := fingerprint.Config{
+    MaxAgeForReuse:       72 * time.Hour,  // Longer expiry
+    MaxIPsPerFingerprint: 20,               // More lenient
+}</code></pre>
+            </div>
+
+            <div id="troubleshooting" class="doc-section">
+                <h2>Troubleshooting</h2>
+                
+                <h3>Legitimate users being blocked</h3>
+                <p><strong>Solution:</strong> Reduce strictness</p>
+                <pre><code>MaxIPsPerFingerprint: 10  // Increase from 5
+BlockOnExceed:        false  // Just monitor</code></pre>
+
+                <h3>Bots still getting through</h3>
+                <p><strong>Solution:</strong> Increase strictness</p>
+                <pre><code>MaxIPsPerFingerprint: 3  // Decrease
+RequireClientData:    true  // Require canvas/WebGL
+DefaultType:          challenge.TypeHCaptcha  // Upgrade</code></pre>
+
+                <h3>High CPU usage</h3>
+                <p><strong>Solution:</strong> Reduce challenge difficulty</p>
+                <pre><code>Difficulty: 3  // Down from 5-6
+DefaultType: challenge.TypeJavaScript  // Lighter</code></pre>
+
+                <h3>CAPTCHA not working</h3>
+                <p><strong>Solution:</strong> Verify API keys</p>
+                <pre><code>echo $HCAPTCHA_SITE_KEY
+echo $HCAPTCHA_SECRET
+# Restart WAF after setting keys</code></pre>
+
+                <h3>Port already in use</h3>
+                <pre><code>sudo lsof -i :8080
+# Change port or kill conflicting process</code></pre>
+
+                <h3>Cannot connect to backend</h3>
+                <pre><code>curl http://localhost:3000  # Verify backend running
+sudo iptables -L  # Check firewall rules</code></pre>
+            </div>
+
+            <div class="doc-section">
+                <h2>Additional Resources</h2>
+                <ul>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/configuration/IP_RULES.md">IP Rules Configuration Guide</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/features/IPV6_SUPPORT.md">IPv6 Support Documentation</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/features/CSRF_PROTECTION.md">CSRF Protection Guide</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/features/CHALLENGE_SYSTEM.md">Challenge System Documentation</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/features/FINGERPRINTING.md">Browser Fingerprinting Guide</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/features/SMUGGLING_DETECTION.md">HTTP Smuggling Detection</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF">GitHub Repository</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/issues">Report Issues</a></li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>RhinoWAF - Open Source Web Application Firewall</p>
+            <p>Licensed under AGPL-3.0 | <a href="https://github.com/1rhino2/RhinoWAF">GitHub</a> | <a href="https://github.com/1rhino2/RhinoWAF/issues">Report Issues</a></p>
+        </div>
+    </footer>
+</body>
+</html>

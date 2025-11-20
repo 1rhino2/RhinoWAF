@@ -1,0 +1,15 @@
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - gosec
+    - bodyclose
+    - gocyclo
+    - misspell
+  disable:
+    - unused
+    - unparam
+    - staticcheck
+    - unconvert
