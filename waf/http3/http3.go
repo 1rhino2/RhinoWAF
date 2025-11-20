@@ -12,6 +12,7 @@ import (
 	"github.com/quic-go/quic-go/http3"
 )
 
+//nolint:unused // Config fields used for JSON unmarshaling
 type Config struct {
 	Enabled      bool     `json:"enabled"`
 	Port         string   `json:"port"`

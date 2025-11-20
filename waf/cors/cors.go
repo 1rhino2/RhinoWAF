@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+//nolint:unused // Config fields used for JSON unmarshaling and initialization
 type Config struct {
 	Enabled        bool
 	AllowedOrigins []string

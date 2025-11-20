@@ -7,6 +7,8 @@ import (
 )
 
 // GlobalTracker monitors server-wide metrics for distributed DDoS detection
+//
+//nolint:unused // Fields accessed via atomic operations and internal methods
 type GlobalTracker struct {
 	mu sync.RWMutex
 
