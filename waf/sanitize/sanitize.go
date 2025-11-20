@@ -196,8 +196,16 @@ func checkHeaders(r *http.Request) bool {
 
 	for k, vals := range r.Header {
 		for _, v := range vals {
-			// check for CRLF injection
+			// check for CRLF injection (literal and encoded)
 			if strings.Contains(v, "\r") || strings.Contains(v, "\n") {
+				return true
+			}
+			// URL-encoded CRLF
+			if strings.Contains(strings.ToLower(v), "%0d%0a") || strings.Contains(strings.ToLower(v), "%0a") || strings.Contains(strings.ToLower(v), "%0d") {
+				return true
+			}
+			// double-encoded CRLF
+			if strings.Contains(strings.ToLower(v), "%250d%250a") || strings.Contains(strings.ToLower(v), "%250d") || strings.Contains(strings.ToLower(v), "%250a") {
 				return true
 			}
 
@@ -262,10 +270,19 @@ func checkBasicAuth(r *http.Request) bool {
 
 func isMaliciousString(s string) bool {
 	s = strings.ToLower(s)
+	// CRLF injection check (for forms and any string input)
+	if strings.Contains(s, "\r\n") || strings.Contains(s, "\n") || strings.Contains(s, "\r") {
+		return true
+	}
+	// URL-encoded CRLF
+	if strings.Contains(s, "%0d%0a") || strings.Contains(s, "%0a") || strings.Contains(s, "%0d") {
+		return true
+	}
 	return hasXSSPatterns(s) || hasSQLInjectionPatterns(s) ||
 		hasPathTraversal(s) || hasCommandInjection(s) ||
 		hasLDAPInjection(s) || hasNoSQLInjection(s) ||
-		hasSSRFPatterns(s) || hasTemplateInjection(s)
+		hasSSRFPatterns(s) || hasTemplateInjection(s) ||
+		hasMaliciousFileExtension(s) || hasOGNLInjection(s)
 }
 
 func hasPathTraversal(s string) bool {
@@ -320,6 +337,20 @@ func hasNoSQLInjection(s string) bool {
 		strings.Contains(s, "\"$where\"") || strings.Contains(s, "{\"$") {
 		return true
 	}
+	// Object notation (curly brace format)
+	if strings.Contains(s, "{$gt") || strings.Contains(s, "{$ne") ||
+		strings.Contains(s, "{$where") || strings.Contains(s, "{$eq") ||
+		strings.Contains(s, "{$regex") || strings.Contains(s, "{$in") ||
+		strings.Contains(s, "{$nin") || strings.Contains(s, "{$exists") {
+		return true
+	}
+	// Array notation for operators
+	if strings.Contains(s, "[$gt]") || strings.Contains(s, "[$ne]") ||
+		strings.Contains(s, "[$eq]") || strings.Contains(s, "[$regex]") ||
+		strings.Contains(s, "[$where]") || strings.Contains(s, "[$in]") ||
+		strings.Contains(s, "[$nin]") || strings.Contains(s, "[$exists]") {
+		return true
+	}
 	// URL-encoded versions
 	if strings.Contains(s, "%22$gt%22") || strings.Contains(s, "%22$ne%22") {
 		return true
@@ -350,6 +381,44 @@ func hasTemplateInjection(s string) bool {
 	}
 	// Ruby/ERB
 	if strings.Contains(s, "<%= system(") || strings.Contains(s, "<% system(") {
+		return true
+	}
+	return false
+}
+
+func hasMaliciousFileExtension(s string) bool {
+	// dangerous file extensions
+	dangerousExts := []string{
+		".php", ".asp", ".aspx", ".jsp", ".jspx",
+		".exe", ".sh", ".bat", ".cmd", ".ps1",
+		".cgi", ".pl", ".py", ".rb",
+	}
+	for _, ext := range dangerousExts {
+		if strings.HasSuffix(s, ext) {
+			return true
+		}
+		// double extension bypass
+		if strings.Contains(s, ext+".") {
+			return true
+		}
+	}
+	// null byte in filename
+	if strings.Contains(s, ".php\x00") || strings.Contains(s, ".asp\x00") {
+		return true
+	}
+	// URL-encoded null byte
+	if strings.Contains(s, ".php%00") || strings.Contains(s, ".asp%00") ||
+		strings.Contains(s, ".jsp%00") {
+		return true
+	}
+	return false
+}
+
+func hasOGNLInjection(s string) bool {
+	// OGNL injection patterns (Java Object-Graph Navigation Library)
+	if strings.Contains(s, "@java.lang") || strings.Contains(s, "@runtime") ||
+		strings.Contains(s, "(#_memberaccess") || strings.Contains(s, "ognl.ognlcontext") ||
+		strings.Contains(s, "%{#context") || strings.Contains(s, "${#context") {
 		return true
 	}
 	return false
@@ -557,6 +626,105 @@ func hasSQLInjectionPatterns(s string) bool {
 			strings.Contains(s, "insert") || strings.Contains(s, "drop") {
 			return true
 		}
+	}
+
+	// evasion: tab/newline mixing
+	if strings.Contains(s, "\t") || strings.Contains(s, "\n") || strings.Contains(s, "\r") {
+		if containsSQLKeyword(s) || strings.Contains(s, "union") || strings.Contains(s, "select") ||
+			strings.Contains(s, " or ") || strings.Contains(s, " and ") {
+			return true
+		}
+	}
+
+	// evasion: parenthesis obfuscation - (1)or(1)=(1) pattern
+	if strings.Count(s, "(") > 2 || strings.Count(s, ")") > 2 {
+		if strings.Contains(s, "union") || strings.Contains(s, "select") ||
+			strings.Contains(s, ")or(") || strings.Contains(s, ")and(") {
+			return true
+		}
+	}
+
+	// evasion: bitwise operators with or/and
+	if (strings.Contains(s, "^") || strings.Contains(s, "&")) &&
+		(strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
+			strings.Contains(s, "+or+") || strings.Contains(s, "+and+")) {
+		return true
+	}
+
+	// evasion: string concatenation with quotes - '1'='1' pattern
+	if strings.Count(s, "'+'") >= 1 || strings.Contains(s, "+'") {
+		if strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
+			strings.Contains(s, "'or'") || strings.Contains(s, "'and'") ||
+			containsSQLKeyword(s) {
+			return true
+		}
+	}
+
+	// evasion: LIKE with and/or (even without wildcards)
+	if (strings.Contains(s, " like ") || strings.Contains(s, " like'") ||
+		strings.Contains(s, "'like'")) {
+		if strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
+			strings.Contains(s, "+or+") || strings.Contains(s, "+and+") {
+			return true
+		}
+	}
+
+	// charset: UTF-7 encoded - +AD pattern
+	if strings.Contains(s, "+ad") || strings.Contains(s, "+ag") ||
+		strings.Contains(s, "+za") {
+		return true
+	}
+
+	// charset: UTF-16 bypass - %00 with SQL patterns
+	if strings.Contains(s, "%00") {
+		if strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
+			containsSQLKeyword(s) || strings.Contains(s, "%00o%00r%00") {
+			return true
+		}
+	}
+
+	// charset: Unicode encoding - %u format (very broad detection)
+	if strings.Contains(s, "%u") {
+		return true
+	}
+
+	// logic: XOR tautology - includes patterns like '1'='1'
+	if strings.Contains(s, " xor ") || strings.Contains(s, "+xor+") {
+		if strings.Contains(s, "true") || strings.Contains(s, "1=1") ||
+			strings.Contains(s, "'1'='1'") || strings.Contains(s, "'='") {
+			return true
+		}
+	}
+
+	// logic: BETWEEN - any between with and
+	if strings.Contains(s, " between ") || strings.Contains(s, "+between+") {
+		return true
+	}
+
+	// type-juggling: float comparison - dot with or/and/operators
+	if strings.Contains(s, ".") &&
+		(strings.Contains(s, "=") || strings.Contains(s, ">") || strings.Contains(s, "<")) &&
+		(strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
+			strings.Contains(s, "+or+") || strings.Contains(s, "+and+")) {
+		return true
+	}
+
+	// type-juggling: scientific notation - e followed by digit
+	if (strings.Contains(s, "e+") || strings.Contains(s, "e-") || strings.Contains(s, "e0")) &&
+		(containsSQLKeyword(s) || strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
+			strings.Contains(s, "+or+") || strings.Contains(s, "+and+")) {
+		return true
+	}
+
+	// race: LOCK TABLES (plural)
+	if strings.Contains(s, "lock table") || strings.Contains(s, "lock+table") ||
+		strings.Contains(s, "lock tables") || strings.Contains(s, "lock+tables") {
+		return true
+	}
+
+	// semicolon with quote - '; pattern
+	if strings.Contains(s, "';") {
+		return true
 	}
 
 	// double encoding
