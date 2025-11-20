@@ -3,6 +3,7 @@ package http3
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -134,7 +135,7 @@ func (s *Server) addAltSvcHeader(w http.ResponseWriter, r *http.Request) {
 		if port[0] == ':' {
 			port = port[1:]
 		}
-		w.Header().Set("Alt-Svc", `h3=":443"; ma=2592000`)
+		w.Header().Set("Alt-Svc", fmt.Sprintf(`h3=":%s"; ma=2592000`, port))
 		return
 	}
 
@@ -144,7 +145,7 @@ func (s *Server) addAltSvcHeader(w http.ResponseWriter, r *http.Request) {
 			if port[0] == ':' {
 				port = port[1:]
 			}
-			w.Header().Set("Alt-Svc", `h3=":443"; ma=2592000`)
+			w.Header().Set("Alt-Svc", fmt.Sprintf(`h3=":%s"; ma=2592000`, port))
 			return
 		}
 	}
