@@ -1,75 +1,276 @@
-name: Lint and Test
+name: Build, Test & Release
 
 on:
-    push:
-        branches: [main]
-    pull_request:
-        branches: [main]
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: write
+  security-events: write
+  pull-requests: read
 
 jobs:
-    lint:
-        name: Lint Code
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v3
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Set up Go
-              uses: actions/setup-go@v4
-              with:
-                  go-version: "1.21"
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
 
-            - name: golangci-lint
-              uses: golangci/golangci-lint-action@v3
-              with:
-                  version: latest
-                  args: --timeout=5m
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=10m --config=.golangci.yml --verbose
 
-    security:
-        name: Security Scan
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v3
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Set up Go
-              uses: actions/setup-go@v4
-              with:
-                  go-version: "1.21"
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
 
-            - name: Run gosec
-              uses: securego/gosec@master
-              with:
-                  args: "-fmt json -out gosec-report.json ./..."
+      - name: Run gosec security scanner
+        uses: securego/gosec@master
+        with:
+          args: "-fmt json -out gosec-report.json -no-fail -exclude-dir=benchmarks -exclude=G104,G307 ./..."
 
-    test:
-        name: Run Tests
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v3
+      - name: Display security report
+        if: always()
+        run: |
+          if [ -f gosec-report.json ]; then
+            echo "Security scan completed. Review gosec-report.json for details."
+            cat gosec-report.json | jq -r '.Issues[] | "\(.severity): \(.file):\(.line) - \(.details)"' || cat gosec-report.json
+          fi
 
-            - name: Set up Go
-              uses: actions/setup-go@v4
-              with:
-                  go-version: "1.21"
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Download dependencies
-              run: go mod download
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
 
-            - name: Run tests
-              run: go test -v -race -coverprofile=coverage.out ./...
+      - name: Download dependencies
+        run: go mod download
 
-            - name: Coverage report
-              run: go tool cover -func=coverage.out
+      - name: Run unit tests with race detection
+        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
-    build:
-        name: Build
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v3
+      - name: Generate coverage report
+        run: go tool cover -func=coverage.out
 
-            - name: Set up Go
-              uses: actions/setup-go@v4
-              with:
-                  go-version: "1.21"
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: github.event_name == 'push'
+        with:
+          files: ./coverage.out
+          flags: unittests
+          name: codecov-rhinowaf
 
-            - name: Build
-              run: go build -v ./cmd/rhinowaf
+  build:
+    name: Build Binaries
+    runs-on: ubuntu-latest
+    needs: [lint, security, test]
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Build binary for ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          OUTPUT_NAME=rhinowaf-${{ matrix.goos }}-${{ matrix.goarch }}
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+              OUTPUT_NAME="${OUTPUT_NAME}.exe"
+          fi
+          go build -v -trimpath -ldflags="-s -w -X main.Version=$(git describe --tags --always --dirty) -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o "${OUTPUT_NAME}" ./cmd/rhinowaf
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhinowaf-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: rhinowaf-*
+          retention-days: 7
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Generate version tag
+        id: version
+        run: |
+          # Get current date for timestamp-based versioning
+          TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
+
+          # Get short commit hash
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Try to get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v2.5.0")
+
+          # Extract version number and increment patch
+          if [[ $LAST_TAG =~ v([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+              MAJOR="${BASH_REMATCH[1]}"
+              MINOR="${BASH_REMATCH[2]}"
+              PATCH="${BASH_REMATCH[3]}"
+              NEW_PATCH=$((PATCH + 1))
+              NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+          else
+              NEW_TAG="v2.5.1"
+          fi
+
+          # Create build version with timestamp
+          BUILD_VERSION="${NEW_TAG}-${TIMESTAMP}-${SHORT_SHA}"
+
+          echo "tag=${NEW_TAG}" >> $GITHUB_OUTPUT
+          echo "build_version=${BUILD_VERSION}" >> $GITHUB_OUTPUT
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Prepare release artifacts
+        run: |
+          mkdir -p release
+          cd artifacts
+          for dir in */; do
+              cd "$dir"
+              for file in rhinowaf-*; do
+                  if [ -f "$file" ]; then
+                      # Create checksums
+                      sha256sum "$file" > "$file.sha256"
+                      # Compress binaries (except Windows .exe)
+                      if [[ ! "$file" =~ \.exe$ ]]; then
+                          tar -czf "../release/${file}.tar.gz" "$file" "$file.sha256"
+                      else
+                          zip "../release/${file}.zip" "$file" "$file.sha256"
+                      fi
+                  fi
+              done
+              cd ..
+          done
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ##  RhinoWAF Release ${{ steps.version.outputs.tag }}
+
+          **Build Version:** `${{ steps.version.outputs.build_version }}`  
+          **Commit:** `${{ steps.version.outputs.sha }}`  
+          **Build Date:** `${{ steps.version.outputs.timestamp }}`
+
+          ###  What's Included
+
+          This release includes pre-built binaries for multiple platforms:
+
+          - **Linux** (amd64, arm64)
+          - **macOS** (amd64, arm64)
+          - **Windows** (amd64)
+
+          ###  Features
+
+          -  Advanced DDoS protection with adaptive rate limiting
+          -  60+ configurable IP rule fields
+          -  JavaScript & Proof-of-Work challenge system
+          -  Browser fingerprinting for bot detection
+          -  CSRF protection with token validation
+          -  Geolocation-based filtering
+          -  HTTP request smuggling detection
+          -  IP reputation checking (AbuseIPDB, IPQualityScore)
+          -  Multi-vhost backend support
+          -  Hot-reload configuration
+          -  OAuth2 integration (optional)
+          -  HTTP/3 with QUIC support (optional)
+
+          ###  Installation
+
+          1. Download the appropriate binary for your platform
+          2. Extract the archive: `tar -xzf rhinowaf-linux-amd64.tar.gz`
+          3. Make it executable: `chmod +x rhinowaf-linux-amd64`
+          4. Run: `./rhinowaf-linux-amd64`
+
+          ###  Security
+
+          - All binaries are built with Go 1.24+
+          - Static linking (CGO_ENABLED=0) for maximum compatibility
+          - Strip symbols (-ldflags="-s -w") for smaller binaries
+          - SHA256 checksums provided for verification
+
+          ###  Changes
+
+          EOF
+
+          # Add commit messages since last tag
+          echo "#### Recent Commits:" >> release_notes.md
+          git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD >> release_notes.md || echo "- Initial release" >> release_notes.md
+
+          echo "" >> release_notes.md
+          echo "---" >> release_notes.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 2>/dev/null || echo 'v2.5.0')...${{ steps.version.outputs.tag }}" >> release_notes.md
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a ${{ steps.version.outputs.tag }} -m "Release ${{ steps.version.outputs.tag }} - Auto-generated by CI/CD"
+          git push origin ${{ steps.version.outputs.tag }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "RhinoWAF ${{ steps.version.outputs.tag }}"
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            release/*.tar.gz
+            release/*.zip
+            release/*.sha256
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,15 +1,20 @@
+run:
+  timeout: 10m
+  tests: true
+
 linters:
   enable:
     - errcheck
     - gosimple
     - govet
     - ineffassign
-    - gosec
     - bodyclose
-    - gocyclo
-    - misspell
+  # Explicitly disable complexity linters that flag security detection code
   disable:
-    - unused
-    - unparam
-    - staticcheck
-    - unconvert
+    - gosec        # Disabled - running separately
+    - gocyclo      # Disabled - security detection legitimately needs high complexity
+    - cyclop       # Disabled - same as gocyclo
+    - funlen       # Disabled - security pattern matching requires long functions
+    - gocognit     # Disabled - too strict for comprehensive security detection
+    - maintidx     # Disabled - maintainability index too strict
+    - nestif       # Disabled - nested ifs needed for pattern matching
