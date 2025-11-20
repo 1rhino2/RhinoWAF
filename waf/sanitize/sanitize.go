@@ -661,8 +661,8 @@ func hasSQLInjectionPatterns(s string) bool {
 	}
 
 	// evasion: LIKE with and/or (even without wildcards)
-	if (strings.Contains(s, " like ") || strings.Contains(s, " like'") ||
-		strings.Contains(s, "'like'")) {
+	if strings.Contains(s, " like ") || strings.Contains(s, " like'") ||
+		strings.Contains(s, "'like'") {
 		if strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
 			strings.Contains(s, "+or+") || strings.Contains(s, "+and+") {
 			return true
