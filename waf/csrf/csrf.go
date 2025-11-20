@@ -101,15 +101,6 @@ func (m *Manager) isExemptPath(path string) bool {
 	return false
 }
 
-func (m *Manager) storeToken(sessionID, token string, ttl time.Duration) {
-	data := &tokenData{
-		value:     token,
-		createdAt: time.Now(),
-		expires:   time.Now().Add(ttl),
-	}
-	m.tokens.Store(sessionID, data)
-}
-
 func (m *Manager) validateToken(sessionID, token string) bool {
 	val, ok := m.tokens.Load(sessionID)
 	if !ok {
