@@ -44,14 +44,15 @@ jobs:
       - name: Run gosec security scanner
         uses: securego/gosec@master
         with:
-          args: "-fmt sarif -out gosec-report.sarif -no-fail -exclude-dir=benchmarks -exclude=G104,G307 ./..."
+          args: "-fmt json -out gosec-report.json -no-fail -exclude-dir=benchmarks -exclude=G104,G307 ./..."
 
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v4
+      - name: Display security report
         if: always()
-        with:
-          sarif_file: gosec-report.sarif
-          category: gosec
+        run: |
+          if [ -f gosec-report.json ]; then
+            echo "Security scan completed. Review gosec-report.json for details."
+            cat gosec-report.json | jq -r '.Issues[] | "\(.severity): \(.file):\(.line) - \(.details)"' || cat gosec-report.json
+          fi
 
   test:
     name: Run Tests
