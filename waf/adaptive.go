@@ -13,19 +13,19 @@ var globalWSHandler *websocket.Handler
 
 func init() {
 	globalWSHandler = websocket.NewHandler(websocket.Config{
-		Enabled:                true,
-		MaxConnectionsPerIP:    10,
-		ConnectionRateLimit:    5,
-		ConnectionRateWindow:   time.Minute,
-		MaxMessageSize:         1024 * 1024,
-		MessageRateLimit:       100,
-		MessageRateWindow:      time.Minute,
-		AllowOriginWildcard:    true,
-		BlockBinaryMessages:    false,
-		MaxViolations:          5,
-		ViolationBanDuration:   30 * time.Minute,
-		IdleTimeout:            5 * time.Minute,
-		HandshakeTimeout:       10 * time.Second,
+		Enabled:              true,
+		MaxConnectionsPerIP:  10,
+		ConnectionRateLimit:  5,
+		ConnectionRateWindow: time.Minute,
+		MaxMessageSize:       1024 * 1024,
+		MessageRateLimit:     100,
+		MessageRateWindow:    time.Minute,
+		AllowOriginWildcard:  true,
+		BlockBinaryMessages:  false,
+		MaxViolations:        5,
+		ViolationBanDuration: 30 * time.Minute,
+		IdleTimeout:          5 * time.Minute,
+		HandshakeTimeout:     10 * time.Second,
 	})
 }
 

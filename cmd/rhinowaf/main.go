@@ -186,20 +186,20 @@ func main() {
 
 	// WebSocket security (v2.6)
 	websocketHandler := websocket.NewHandler(websocket.Config{
-		Enabled:                true,
-		MaxConnectionsPerIP:    10,
-		ConnectionRateLimit:    5,
-		ConnectionRateWindow:   time.Minute,
-		MaxMessageSize:         1024 * 1024, // 1MB
-		MessageRateLimit:       100,
-		MessageRateWindow:      time.Minute,
-		AllowedOrigins:         []string{},
-		AllowOriginWildcard:    true,
-		BlockBinaryMessages:    false,
-		MaxViolations:          5,
-		ViolationBanDuration:   30 * time.Minute,
-		IdleTimeout:            5 * time.Minute,
-		HandshakeTimeout:       10 * time.Second,
+		Enabled:              true,
+		MaxConnectionsPerIP:  10,
+		ConnectionRateLimit:  5,
+		ConnectionRateWindow: time.Minute,
+		MaxMessageSize:       1024 * 1024, // 1MB
+		MessageRateLimit:     100,
+		MessageRateWindow:    time.Minute,
+		AllowedOrigins:       []string{},
+		AllowOriginWildcard:  true,
+		BlockBinaryMessages:  false,
+		MaxViolations:        5,
+		ViolationBanDuration: 30 * time.Minute,
+		IdleTimeout:          5 * time.Minute,
+		HandshakeTimeout:     10 * time.Second,
 	})
 
 	// CSRF protection

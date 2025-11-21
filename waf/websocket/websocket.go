@@ -18,26 +18,26 @@ type ConnectionInfo struct {
 }
 
 type Config struct {
-	Enabled                bool
-	MaxConnectionsPerIP    int
-	ConnectionRateLimit    int
-	ConnectionRateWindow   time.Duration
-	MaxMessageSize         int64
-	MessageRateLimit       int
-	MessageRateWindow      time.Duration
-	AllowedOrigins         []string
-	AllowOriginWildcard    bool
-	BlockBinaryMessages    bool
-	InspectTextMessages    bool
-	MaxViolations          int
-	ViolationBanDuration   time.Duration
-	IdleTimeout            time.Duration
-	HandshakeTimeout       time.Duration
-	EnableCompression      bool
-	RequireSubprotocol     bool
-	AllowedSubprotocols    []string
-	BlockPingFlood         bool
-	MaxPingsPerMinute      int
+	Enabled              bool
+	MaxConnectionsPerIP  int
+	ConnectionRateLimit  int
+	ConnectionRateWindow time.Duration
+	MaxMessageSize       int64
+	MessageRateLimit     int
+	MessageRateWindow    time.Duration
+	AllowedOrigins       []string
+	AllowOriginWildcard  bool
+	BlockBinaryMessages  bool
+	InspectTextMessages  bool
+	MaxViolations        int
+	ViolationBanDuration time.Duration
+	IdleTimeout          time.Duration
+	HandshakeTimeout     time.Duration
+	EnableCompression    bool
+	RequireSubprotocol   bool
+	AllowedSubprotocols  []string
+	BlockPingFlood       bool
+	MaxPingsPerMinute    int
 }
 
 type Handler struct {
