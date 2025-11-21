@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"rhinowaf/waf/ddos"
+	"rhinowaf/waf/websocket"
 	"time"
 )
 
@@ -13,8 +15,25 @@ const backendURL = "http://localhost:9000"
 
 // ReverseProxy handles proxying requests to the backend
 var proxy *httputil.ReverseProxy
+var wsHandler *websocket.Handler
 
 func init() {
+	// Initialize WebSocket security handler
+	wsHandler = websocket.NewHandler(websocket.Config{
+		Enabled:                true,
+		MaxConnectionsPerIP:    10,
+		ConnectionRateLimit:    5,
+		ConnectionRateWindow:   time.Minute,
+		MaxMessageSize:         1024 * 1024,
+		MessageRateLimit:       100,
+		MessageRateWindow:      time.Minute,
+		AllowOriginWildcard:    true,
+		BlockBinaryMessages:    false,
+		MaxViolations:          5,
+		ViolationBanDuration:   30 * time.Minute,
+		IdleTimeout:            5 * time.Minute,
+		HandshakeTimeout:       10 * time.Second,
+	})
 	target, _ := url.Parse(backendURL)
 
 	// Create custom transport with connection pooling
@@ -35,6 +54,13 @@ func init() {
 
 // ProxyToBackend forwards requests to the backend application
 func ProxyToBackend(w http.ResponseWriter, r *http.Request) {
+	// Check WebSocket upgrade attempts
+	ip := ddos.GetIP(r)
+	if allowed, reason := wsHandler.ValidateUpgrade(r, ip); !allowed {
+		http.Error(w, reason, http.StatusForbidden)
+		return
+	}
+
 	// Add headers to indicate the request passed through WAF
 	r.Header.Set("X-Protected-By", "RhinoWAF-v2.0")
 	r.Header.Set("X-WAF-Status", "PASSED")

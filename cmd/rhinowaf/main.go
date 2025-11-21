@@ -24,6 +24,7 @@ import (
 	"rhinowaf/waf/requestid"
 	"rhinowaf/waf/vhost"
 	"rhinowaf/waf/webhook"
+	"rhinowaf/waf/websocket"
 	"syscall"
 	"time"
 
@@ -183,6 +184,24 @@ func main() {
 	fingerprintTracker := fingerprint.NewTracker(fingerprintConfig)
 	fingerprintMW := fingerprint.NewMiddleware(fingerprintTracker)
 
+	// WebSocket security (v2.6)
+	websocketHandler := websocket.NewHandler(websocket.Config{
+		Enabled:                true,
+		MaxConnectionsPerIP:    10,
+		ConnectionRateLimit:    5,
+		ConnectionRateWindow:   time.Minute,
+		MaxMessageSize:         1024 * 1024, // 1MB
+		MessageRateLimit:       100,
+		MessageRateWindow:      time.Minute,
+		AllowedOrigins:         []string{},
+		AllowOriginWildcard:    true,
+		BlockBinaryMessages:    false,
+		MaxViolations:          5,
+		ViolationBanDuration:   30 * time.Minute,
+		IdleTimeout:            5 * time.Minute,
+		HandshakeTimeout:       10 * time.Second,
+	})
+
 	// CSRF protection
 	csrfManager := csrf.NewManager(csrf.Config{
 		Enabled:       true,
@@ -278,6 +297,11 @@ func main() {
 	mux.Handle("/fingerprint/collect", importLocalhost(http.HandlerFunc(fingerprintMW.CollectHandler)))
 	mux.Handle("/fingerprint/stats", importLocalhost(http.HandlerFunc(fingerprintMW.StatsHandler)))
 	mux.Handle("/csrf/token", importLocalhost(http.HandlerFunc(csrfMW.TokenHandler)))
+	mux.Handle("/websocket/stats", importLocalhost(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		stats := websocketHandler.GetStats()
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(stats)
+	})))
 
 	// VHost stats endpoint
 	if vhostMgr != nil {
@@ -322,6 +346,7 @@ func main() {
 	fmt.Println("   - Challenge System (JavaScript and Proof-of-Work)")
 	fmt.Println("   - Browser Fingerprinting for Bot Detection")
 	fmt.Println("   - CSRF Protection with Token Validation")
+	fmt.Println("   - WebSocket Security (Connection & Message Rate Limiting)")
 	fmt.Println("   - Geolocation-based Access Control")
 	fmt.Println("   - Proxy, Tor, and VPN Detection")
 	fmt.Println("   - Input Sanitization and XSS Protection")
