@@ -5,8 +5,29 @@ import (
 	"rhinowaf/waf/ddos"
 	"rhinowaf/waf/sanitize"
 	"rhinowaf/waf/templates"
+	"rhinowaf/waf/websocket"
 	"time"
 )
+
+var globalWSHandler *websocket.Handler
+
+func init() {
+	globalWSHandler = websocket.NewHandler(websocket.Config{
+		Enabled:                true,
+		MaxConnectionsPerIP:    10,
+		ConnectionRateLimit:    5,
+		ConnectionRateWindow:   time.Minute,
+		MaxMessageSize:         1024 * 1024,
+		MessageRateLimit:       100,
+		MessageRateWindow:      time.Minute,
+		AllowOriginWildcard:    true,
+		BlockBinaryMessages:    false,
+		MaxViolations:          5,
+		ViolationBanDuration:   30 * time.Minute,
+		IdleTimeout:            5 * time.Minute,
+		HandshakeTimeout:       10 * time.Second,
+	})
+}
 
 func AdaptiveProtect(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -14,6 +35,12 @@ func AdaptiveProtect(next http.HandlerFunc) http.HandlerFunc {
 
 		// validate headers first (prevents header injection)
 		if valid, reason := sanitize.ValidateHeaders(r); !valid {
+			templates.RenderBlockedError(w, ip, reason)
+			return
+		}
+
+		// check WebSocket upgrade attempts
+		if allowed, reason := globalWSHandler.ValidateUpgrade(r, ip); !allowed {
 			templates.RenderBlockedError(w, ip, reason)
 			return
 		}

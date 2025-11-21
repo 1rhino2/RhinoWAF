@@ -93,5 +93,21 @@
     "proxy_url": "http://localhost:9000",
     "timeout_seconds": 30,
     "max_idle_conns": 100
+  },
+  "websocket": {
+    "enabled": true,
+    "max_connections_per_ip": 10,
+    "connection_rate_limit": 5,
+    "connection_rate_window_seconds": 60,
+    "max_message_size": 1048576,
+    "message_rate_limit": 100,
+    "message_rate_window_seconds": 60,
+    "allowed_origins": [],
+    "allow_origin_wildcard": true,
+    "block_binary_messages": false,
+    "max_violations": 5,
+    "violation_ban_duration_minutes": 30,
+    "idle_timeout_minutes": 5,
+    "handshake_timeout_seconds": 10
   }
 }

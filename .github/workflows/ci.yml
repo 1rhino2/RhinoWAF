@@ -184,9 +184,9 @@ jobs:
                       sha256sum "$file" > "$file.sha256"
                       # Compress binaries (except Windows .exe)
                       if [[ ! "$file" =~ \.exe$ ]]; then
-                          tar -czf "../release/${file}.tar.gz" "$file" "$file.sha256"
+                          tar -czf "../../release/${file}.tar.gz" "$file" "$file.sha256"
                       else
-                          zip "../release/${file}.zip" "$file" "$file.sha256"
+                          zip "../../release/${file}.zip" "$file" "$file.sha256"
                       fi
                   fi
               done
