@@ -2,7 +2,7 @@
 
 > Modern WAF with DDoS protection, bot detection, and zero-config setup. Free alternative to Cloudflare, ModSecurity, and AWS WAF.
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/1rhino2/RhinoWAF?style=social)](https://github.com/1rhino2/RhinoWAF)
 
@@ -10,33 +10,23 @@
 
 
 
-**Keywords**: web application firewall, ddos protection, rate limiting, bot detection, reverse proxy, api gateway security, nginx alternative, modsecurity alternative
+## Production notice
 
-## Production Notice
+**Version:** 1.0.0 | **Last updated:** May 2026
 
-Recent benchmark testing achieved **90.49% overall attack detection** across 327+ comprehensive test cases with zero false positives. Individual category results: XSS 100%, Header Injection 93.10%, SQL Injection 89.86%, Form Sanitization 85%. Tests include enterprise-grade penetration testing patterns with advanced evasion techniques.
+RhinoWAF is a large Go WAF with DDoS limits, sanitization, vhost reverse proxy, fingerprinting, and challenges. Treat it as **active development**, not a drop-in replacement for Cloudflare or ModSecurity without your own staging tests.
 
-The developers provide this software "as is" without warranty. Users assume all risks including potential loss, damage, or downtime. See benchmark results below for detailed test data.
+**Detection (automated):** The `benchmarks/` package exercises `sanitize.IsMalicious()` with hundreds of payloads. On a full verbose run, SQLi/XSS suites report **100%** detection in those unit tests. Broader README figures (~87-90% overall, some false positives under load) reflect older or mixed scenarios; tune `config/ip_rules.json` and rate limits for your traffic.
 
-**Version:** 2.5.0
-**Status:** IPv6 Support Added
-**Last Updated:** November 2, 2025
+**Recent fix:** Multi-vhost mode (`config/backends.json`) now runs the same `ProtectRequest` checks as built-in routes (rate limits, IP rules, sanitization). Previously, proxied traffic could skip attack detection.
 
-Modern Web Application Firewall (WAF) built with Go, featuring DDoS protection, browser fingerprinting, challenge system, CSRF protection, IPv6 support, and advanced security capabilities.
+**Before production:**
 
----
+- Start every backend URL listed in `config/backends.json` (example domains use ports 3000-5000; default is `localhost:9000`).
+- Run `powershell -File scripts/test-all.ps1` (unit tests, lint, build, live smoke) or `go test ./...` and `make lint` from the repo root.
+- Test with your real Host headers, APIs, and webhooks (trusted user-agent list is narrow).
 
-## Production Readiness Notice
-
-RhinoWAF is under active development. Recent testing shows Grade B performance with 87.67% attack detection and 2.60% false positive rate. While the WAF successfully blocks most of critical attacks (SQL injection, XSS, credential stuffing), some edge cases remain:
-
-- Bot detection may allow sophisticated bots using modern API client signatures
-- High-traffic scenarios may experience minor false positives (3.8% during peak loads)
-- Configuration tuning is recommended for your specific use case
-
-**The developers provide this software "as is" without warranty of any kind.** Users assume all risks including potential loss, damage, or downtime. Thorough testing in a staging environment matching your production workload is strongly recommended before deployment.
-
-See benchmark details below for full test results.
+The developers provide this software **as is** without warranty. You assume all risks including downtime and false blocks.
 
 ---
 
@@ -71,8 +61,8 @@ This project is developed collaboratively by a small team, allowing for rapid it
 ### **Core Protection**
 
 - **DDoS Protection**: Rate limiting, burst detection, Slowloris mitigation, reputation scoring
-- **IPv6 Support**: Full IPv6 and dual-stack support for all security features (v2.5)
-- **Multi-VHost Support**: Single instance routes multiple domains to different backends (v2.6)
+- **IPv6 Support**: Dual-stack client IP handling and geo/rate-limit integration
+- **Multi-VHost Support**: Single instance routes multiple domains to different backends
 - **Input Sanitization**: SQL injection, XSS, path traversal, command injection blocking
 - **HTTP Request Smuggling Detection**: CL.TE, TE.CL, TE.TE, header obfuscation, protocol violations
 - **IP Management**: 60+ per-IP control fields with priority-based rule matching
@@ -122,7 +112,7 @@ This project is developed collaboratively by a small team, allowing for rapid it
 - **Path Exemptions**: Configurable whitelist for public endpoints
 - **Token Endpoint**: GET /csrf/token returns JSON with token and configuration
 
-### **Request ID Tracking (v2.4.1)**
+### **Request ID Tracking**
 - **Unique Request IDs**: Every request gets a unique 32-character hexadecimal ID
 - **Client Tracking**: X-Request-ID header returned in responses for client-side correlation
 - **Upstream Integration**: Preserves existing request IDs from upstream proxies/load balancers
@@ -131,9 +121,9 @@ This project is developed collaboratively by a small team, allowing for rapid it
 
 ### Sensitive Endpoint Protection
 
-As of v2.4.1, sensitive endpoints (/metrics, /health, /reload, /flood, /fingerprint/collect, /fingerprint/stats, /csrf/token) are restricted to localhost by default. Requests from non-localhost IPs will be blocked with HTTP 403. See `waf/localhost.go` for details.
+Sensitive endpoints (`/metrics`, `/health`, `/reload`, `/flood`, `/fingerprint/collect`, `/fingerprint/stats`, `/csrf/token`) are restricted to localhost by default. See `waf/localhost.go`.
 
-## Production Status (v2.5.0)
+## v1.0.0 scope (what ships today)
 
 - **IPv6 Support**: Full dual-stack operation with CIDR matching and rate limiting
 - **Request ID Tracking**: Enabled for all requests with X-Request-ID header
@@ -153,43 +143,27 @@ As of v2.4.1, sensitive endpoints (/metrics, /health, /reload, /flood, /fingerpr
 
 ## Roadmap
 
-### **v2.5 (Planned - Q1 2026)**
+### **v1.0.0 (released)**
+
+Core WAF, vhost proxy, sanitization, DDoS limits, challenges, fingerprinting, CSRF, metrics, hot-reload, and `scripts/test-all.ps1`. See [docs/changelogs/V1.0.0.md](docs/changelogs/V1.0.0.md).
+
+### **v1.x / v2 (planned)**
 
 **Security Enhancements:**
-- IPv6 full support (dual-stack handling, CIDR matching, rate limiting)
-- Custom error page templates (branded error pages, template engine)
-- Advanced rate limiting algorithms (token bucket, sliding window, leaky bucket)
-- Request/response size limits with configurable thresholds
-- Certificate pinning for backend connections
+- Advanced rate limiting (token bucket, sliding window)
+- GraphQL depth limits, OpenAPI validation
+- Geo-velocity and session fingerprint binding
+- Custom error page templates
 
 **Performance & Scalability:**
-- Response caching layer (in-memory, TTL-based, path patterns)
-- Connection pooling improvements (circuit breaker, health checks)
-- Lazy loading for large configurations
-- Optimized GeoIP lookups with LRU cache
-- Reduced memory footprint for session storage
-
-**Protocol Support:**
-- GraphQL query depth limiting and complexity analysis
-- WebSocket security (payload inspection, rate limiting)
-- gRPC proxy support with health checking
-- MQTT protocol support for IoT applications
+- Response caching, circuit breaker backends
+- Distributed rate limiting (Redis)
 
 **Observability:**
-- Custom Prometheus labels (dynamic registration)
-- Distributed tracing with OpenTelemetry
-- Structured logging with log levels
-- Performance profiling endpoints
-- Real-time dashboard API
+- OpenTelemetry tracing, profiling endpoints
+- Web UI dashboard
 
-**Quality of Life:**
-- Hot-reload for TLS certificates
-- Configuration validation tool
-- Health check improvements (dependency checks)
-- Graceful degradation modes
-- Better error messages and diagnostics
-
-### **v3.0+ (Long-term)**
+### **v3.0+ (long-term)**
 - Distributed rate limiting (Redis/Memcached backend)
 - Web UI dashboard (React-based, real-time metrics)
 - Multi-server synchronization (cluster mode)
@@ -984,7 +958,11 @@ RhinoWAF successfully blocks 100% of critical attacks (SQL injection, XSS, crede
 
 ### Released Versions
 
-#### **v2.4** â€” October 28, 2025
+#### **v1.0.0** — May 2026
+
+First semver release. Vhost traffic uses the same protection pipeline as built-in routes; full test suite in `scripts/test-all.ps1`. See [docs/changelogs/V1.0.0.md](docs/changelogs/V1.0.0.md).
+
+#### **v2.4** â€” October 28, 2025 (pre-1.0 development history)
 *HTTP Request Smuggling Protection*
 
 - **Smuggling Detection Engine** â€” 17 violation types detecting CL.TE, TE.CL, TE.TE attacks
@@ -1151,6 +1129,7 @@ Comprehensive documentation is available in the `docs/` directory:
 
 ### Version History
 
+- **[V1.0.0.md](docs/changelogs/V1.0.0.md)** - Version 1.0.0 release notes
 - **[V2.2_FEATURES.md](docs/changelogs/V2.2_FEATURES.md)** - Version 2.2 release notes
 - **[V2.3_FEATURES.md](docs/changelogs/V2.3_FEATURES.md)** - Version 2.3 release notes (metrics, hot-reload, logging)
 - **[V2.4_FEATURES.md](docs/changelogs/V2.4_FEATURES.md)** - Version 2.4 release notes
@@ -1170,7 +1149,7 @@ AGPL-3.0 - requires open sourcing derivative works
 
 ---
 
-**Version**: 2.5.0 | **Status**: Production-ready with IPv6 support | **Last Updated**: November 2, 2025
+**Version**: 1.0.0 | **Status**: First stable release (self-hosted; staging required) | **Last Updated**: May 2026
 
 ---
 
