@@ -8,6 +8,28 @@
 
 📚 **[View Full Documentation & Benchmarks](https://1rhino2.github.io/RhinoWAF/)** | [Features](https://1rhino2.github.io/RhinoWAF/features.html) | [Comparison](https://1rhino2.github.io/RhinoWAF/comparison.html)
 
+## Self-host or get help setting it up
+
+**Selfhost (free, AGPL):** clone the repo, run `go build -o rhinowaf ./cmd/rhinowaf`, point it in front of nginx, Caddy, or Traefik on **your VPS**. Good fit for WordPress, fan sites, APIs, and anything on **HTTP/HTTPS (ports 80/443)**.
+
+**What RhinoWAF is for:** Layer 7 protection (rate limits, challenges, Turnstile/hCaptcha, sanitization, reverse proxy). It is **not** a replacement for **TCPShield** on Minecraft **Java ports**; use TCPShield (or similar) for the game server, RhinoWAF for your **website, panel, store, and API**.
+
+### Paid setup (optional)
+
+I also do hands-on deploy for people who want it running without fighting YAML.
+
+| Package | What you get | Typical price |
+|---------|----------------|---------------|
+| **Go-live** | Same VPS install, Traefik or nginx in front of your app, Turnstile on flood traffic, L7 rules tuned for your domain, smoke test, short handoff doc | **$125–250** one-time |
+| **Care** | Weekly health check, small config fixes after you are live | **$99/mo** (optional) |
+| **Custom build** | Admin UI, multi site, client handoff package (see [RhinoWAFNoah](https://github.com/1rhino2/RhinoWAF) style deploys) | quoted |
+
+**Terms:** fixed scope, **half before SSH**, half when traffic passes through the WAF. PayPal or Cash App after scope is agreed in writing (Discord is fine).
+
+**Contact:** Discord **`1rhino2`** (fastest) or open a [GitHub Discussion](https://github.com/1rhino2/RhinoWAF/discussions) with your stack (VPS, domain, Traefik yes/no).
+
+**Other work** (Discord bots, APIs, scrapers, sites): [1rhino2.github.io](https://1rhino2.github.io) separate from this repo.
+
 
 
 ## Production notice
