@@ -1,6 +1,6 @@
 ﻿# RhinoWAF - Open Source Web Application Firewall (WAF) in Go
 
-> Modern WAF with DDoS protection, bot detection, and zero-config setup. Free alternative to Cloudflare, ModSecurity, and AWS WAF.
+> Self-hosted Go WAF for your VPS: put it in front of nginx or Traefik for L7 floods and bot challenges. Free to self-host; paid go-live setup available.
 
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
