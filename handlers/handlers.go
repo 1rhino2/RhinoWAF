@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"rhinowaf/waf"
 	"rhinowaf/waf/ddos"
 	"rhinowaf/waf/websocket"
 	"time"
@@ -62,7 +63,7 @@ func ProxyToBackend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add headers to indicate the request passed through WAF
-	r.Header.Set("X-Protected-By", "RhinoWAF-v2.0")
+	r.Header.Set("X-Protected-By", waf.Name+"-"+waf.Version)
 	r.Header.Set("X-WAF-Status", "PASSED")
 
 	// Proxy the request

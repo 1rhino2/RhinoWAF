@@ -8,11 +8,9 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"rhinowaf/waf/ddos"
-	"rhinowaf/waf/websocket"
+	"rhinowaf/waf"
 	"strings"
 	"sync"
-	"time"
 )
 
 type BackendConfig struct {
@@ -27,10 +25,9 @@ type VHostConfig struct {
 }
 
 type VHostManager struct {
-	config    *VHostConfig
-	proxies   map[string]*httputil.ReverseProxy
-	wsHandler *websocket.Handler
-	mu        sync.RWMutex
+	config  *VHostConfig
+	proxies map[string]*httputil.ReverseProxy
+	mu      sync.RWMutex
 }
 
 func NewVHostManager(configPath string) (*VHostManager, error) {
@@ -47,21 +44,6 @@ func NewVHostManager(configPath string) (*VHostManager, error) {
 	mgr := &VHostManager{
 		config:  &config,
 		proxies: make(map[string]*httputil.ReverseProxy),
-		wsHandler: websocket.NewHandler(websocket.Config{
-			Enabled:              true,
-			MaxConnectionsPerIP:  10,
-			ConnectionRateLimit:  5,
-			ConnectionRateWindow: time.Minute,
-			MaxMessageSize:       1024 * 1024,
-			MessageRateLimit:     100,
-			MessageRateWindow:    time.Minute,
-			AllowOriginWildcard:  true,
-			BlockBinaryMessages:  false,
-			MaxViolations:        5,
-			ViolationBanDuration: 30 * time.Minute,
-			IdleTimeout:          5 * time.Minute,
-			HandshakeTimeout:     10 * time.Second,
-		}),
 	}
 
 	if err := mgr.initProxies(); err != nil {
@@ -137,13 +119,12 @@ func (m *VHostManager) GetProxy(host string) *httputil.ReverseProxy {
 }
 
 func (m *VHostManager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Validate WebSocket upgrade attempts
-	ip := ddos.GetIP(r)
-	if allowed, reason := m.wsHandler.ValidateUpgrade(r, ip); !allowed {
-		log.Printf("WebSocket blocked for %s from %s: %s", r.Host, ip, reason)
-		http.Error(w, reason, http.StatusForbidden)
+	if !waf.ProtectRequest(w, r) {
 		return
 	}
+
+	r.Header.Set("X-Protected-By", waf.Name+"-"+waf.Version)
+	r.Header.Set("X-WAF-Status", "PASSED")
 
 	proxy := m.GetProxy(r.Host)
 	if proxy == nil {
