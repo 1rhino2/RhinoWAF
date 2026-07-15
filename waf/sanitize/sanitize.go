@@ -3,6 +3,7 @@ package sanitize
 import (
 	"html"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -132,8 +133,17 @@ func checkQueryParams(r *http.Request) bool {
 	if isMaliciousString(r.URL.RawQuery) {
 		return true
 	}
+	// decoded form catches %5B%24gt%5D -> [$gt]
+	if decoded, err := url.QueryUnescape(r.URL.RawQuery); err == nil {
+		if isMaliciousString(decoded) {
+			return true
+		}
+	}
 
-	for _, vals := range r.URL.Query() {
+	for k, vals := range r.URL.Query() {
+		if isMaliciousString(k) {
+			return true
+		}
 		for _, v := range vals {
 			if isMaliciousString(v) {
 				return true
@@ -371,15 +381,19 @@ func hasNoSQLInjection(s string) bool {
 		strings.Contains(s, "{$nin") || strings.Contains(s, "{$exists") {
 		return true
 	}
-	// Array notation for operators
-	if strings.Contains(s, "[$gt]") || strings.Contains(s, "[$ne]") ||
-		strings.Contains(s, "[$eq]") || strings.Contains(s, "[$regex]") ||
-		strings.Contains(s, "[$where]") || strings.Contains(s, "[$in]") ||
-		strings.Contains(s, "[$nin]") || strings.Contains(s, "[$exists]") {
+	// Array / bracket notation (also as query keys like user[$gt])
+	ops := []string{"$gt", "$gte", "$lt", "$lte", "$ne", "$eq", "$regex", "$where", "$in", "$nin", "$exists", "$or", "$and"}
+	for _, op := range ops {
+		if strings.Contains(s, "["+op+"]") || strings.Contains(s, "["+op) {
+			return true
+		}
+	}
+	// URL-encoded bracket ops: %5B%24gt%5D etc
+	if strings.Contains(s, "%5b%24") || strings.Contains(s, "%5B%24") {
 		return true
 	}
-	// URL-encoded versions
-	if strings.Contains(s, "%22$gt%22") || strings.Contains(s, "%22$ne%22") {
+	if strings.Contains(s, "%22$gt%22") || strings.Contains(s, "%22$ne%22") ||
+		strings.Contains(s, "%22%24gt%22") || strings.Contains(s, "%22%24ne%22") {
 		return true
 	}
 	return false

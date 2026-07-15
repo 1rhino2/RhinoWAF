@@ -5,6 +5,15 @@ import (
 	"testing"
 )
 
+func TestNoSQLQueryKeyBlocked(t *testing.T) {
+	ua := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	r := httptest.NewRequest("GET", "/?user%5B%24gt%5D=", nil)
+	r.Header.Set("User-Agent", ua)
+	if !IsMalicious(r) {
+		t.Fatal("nosql operator in query key should be blocked")
+	}
+}
+
 func TestChromeUserAgentNotMalicious(t *testing.T) {
 	ua := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 	r := httptest.NewRequest("GET", "/about", nil)
