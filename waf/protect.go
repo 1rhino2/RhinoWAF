@@ -1,6 +1,7 @@
 package waf
 
 import (
+	"context"
 	"net/http"
 	"rhinowaf/waf/ddos"
 	"rhinowaf/waf/sanitize"
@@ -10,6 +11,10 @@ import (
 	"strings"
 	"time"
 )
+
+type ctxKey int
+
+const protectedKey ctxKey = 1
 
 var (
 	globalWSHandler      *websocket.Handler
@@ -35,9 +40,44 @@ func init() {
 	globalSmuggleChecker = smuggling.NewDetector(true, true, 4)
 }
 
+// ProtectMiddleware runs ProtectRequest before fingerprint/challenge so attacks
+// get blocked instead of a verification HTML page.
+func ProtectMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if skipProtectPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if !ProtectRequest(w, r) {
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), protectedKey, true)))
+	})
+}
+
+func skipProtectPath(path string) bool {
+	switch {
+	case path == "/health", path == "/metrics", path == "/reload":
+		return true
+	case strings.HasPrefix(path, "/challenge/"):
+		return true
+	case strings.HasPrefix(path, "/fingerprint/"):
+		return true
+	case path == "/csrf/token", path == "/websocket/stats", path == "/vhost/stats":
+		return true
+	default:
+		return false
+	}
+}
+
 // ProtectRequest runs rate limits, IP rules, smuggling checks, and sanitization.
 // Returns true when the request may continue to the backend handler.
 func ProtectRequest(w http.ResponseWriter, r *http.Request) bool {
+	// already cleared by ProtectMiddleware - don't burn a second rate-limit token
+	if r.Context().Value(protectedKey) != nil {
+		return true
+	}
+
 	ip := ddos.GetIP(r)
 
 	if valid, reason := sanitize.ValidateHeaders(r); !valid {

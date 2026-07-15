@@ -188,10 +188,15 @@ func checkMultipartForm(r *http.Request) bool {
 }
 
 func checkHeaders(r *http.Request) bool {
-	criticalHeaders := map[string]bool{
+	// skip payload scanners on these - real Chrome UA has "Win64; x64" (two semicolons)
+	// and that used to trip the stacked-query heuristic
+	skipPayloadScan := map[string]bool{
 		"Content-Type": true, "Content-Length": true, "Host": true,
 		"Accept": true, "Accept-Encoding": true,
 		"Accept-Language": true, "Connection": true,
+		"Sec-Ch-Ua": true, "Sec-Ch-Ua-Mobile": true,
+		"Sec-Ch-Ua-Platform": true, "Sec-Fetch-Site": true,
+		"Sec-Fetch-Mode": true, "Sec-Fetch-Dest": true, "Sec-Fetch-User": true,
 	}
 
 	for k, vals := range r.Header {
@@ -220,7 +225,16 @@ func checkHeaders(r *http.Request) bool {
 				return true
 			}
 
-			if !criticalHeaders[k] {
+			// User-Agent: only obvious weaponized payloads, not full SQLi heuristics
+			// (real Chrome has "Win64; x64" which used to trip stacked-query)
+			if k == "User-Agent" {
+				if isWeaponizedUserAgent(v) {
+					return true
+				}
+				continue
+			}
+
+			if !skipPayloadScan[k] {
 				if isMaliciousString(v) {
 					return true
 				}
@@ -245,6 +259,19 @@ func checkHeaders(r *http.Request) bool {
 		}
 	}
 
+	return false
+}
+
+// shellshock / XSS in UA only - not the full payload scanner
+func isWeaponizedUserAgent(ua string) bool {
+	s := strings.ToLower(ua)
+	if strings.Contains(s, "<script") || strings.Contains(s, "</script") ||
+		strings.Contains(s, "javascript:") || strings.Contains(s, "onerror=") {
+		return true
+	}
+	if strings.Contains(s, "() { :; };") {
+		return true
+	}
 	return false
 }
 
@@ -536,8 +563,8 @@ func hasSQLInjectionPatterns(s string) bool {
 		return true
 	}
 
-	// batch queries with multiple statements
-	if strings.Count(s, ";") >= 2 {
+	// stacked queries: need statement-ish shape, not UA junk like "Win64; x64"
+	if strings.Count(s, ";") >= 2 && containsSQLKeyword(s) {
 		return true
 	}
 
