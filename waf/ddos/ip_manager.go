@@ -1032,6 +1032,13 @@ func (m *IPManager) ValidateRequest(ctx *RequestContext) (allowed bool, reason s
 		}
 	}
 
+	// global limits apply even when the client IP has no per-IP rule
+	if m.config != nil {
+		if allowed, reason := m.checkGlobalLimits(ctx); !allowed {
+			return false, reason
+		}
+	}
+
 	rule := m.GetIPRuleByIP(ctx.IP)
 	if rule == nil {
 		return true, ""
@@ -1112,6 +1119,56 @@ func (m *IPManager) ValidateRequest(ctx *RequestContext) (allowed bool, reason s
 		m.lastRequestTime[ctx.IP] = ctx.Timestamp
 		m.mu.Unlock()
 		m.mu.RLock()
+	}
+
+	return true, ""
+}
+
+// checkGlobalLimits enforces GlobalRules size/method/path caps for every request
+func (m *IPManager) checkGlobalLimits(ctx *RequestContext) (bool, string) {
+	g := m.config.GlobalRules
+
+	maxURL := g.MaxURLLength
+	if maxURL <= 0 {
+		maxURL = 8192 // sane default so random IPs still get a ceiling
+	}
+	urlLen := len(ctx.FullURL)
+	if urlLen == 0 {
+		urlLen = len(ctx.Path)
+	}
+	if urlLen > maxURL {
+		return false, "url_too_long"
+	}
+
+	if g.MaxRequestBodySize > 0 && ctx.ContentLength > g.MaxRequestBodySize {
+		return false, "body_too_large"
+	}
+
+	if len(g.AllowedMethods) > 0 {
+		ok := false
+		for _, mth := range g.AllowedMethods {
+			if strings.EqualFold(mth, ctx.Method) {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return false, "method_not_allowed"
+		}
+	}
+
+	for _, blocked := range g.BlockedPaths {
+		if matchPattern(ctx.Path, blocked) {
+			return false, "path_blocked_global"
+		}
+	}
+
+	if g.MaxHeaderCount > 0 && len(ctx.Headers) > g.MaxHeaderCount {
+		return false, "too_many_headers"
+	}
+
+	if g.MaxCookieCount > 0 && len(ctx.Cookies) > g.MaxCookieCount {
+		return false, "too_many_cookies"
 	}
 
 	return true, ""

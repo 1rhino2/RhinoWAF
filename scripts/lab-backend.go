@@ -10,8 +10,11 @@ import (
 )
 
 func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/about" {
+			fmt.Fprint(w, "about page from real backend")
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"ok":         true,
@@ -23,11 +26,8 @@ func main() {
 			"time":       time.Now().Format(time.RFC3339),
 		})
 	})
-	mux.HandleFunc("/about", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "about page from real backend")
-	})
 	fmt.Println("lab backend listening on :9000")
-	if err := http.ListenAndServe(":9000", mux); err != nil {
+	if err := http.ListenAndServe(":9000", handler); err != nil {
 		panic(err)
 	}
 }
