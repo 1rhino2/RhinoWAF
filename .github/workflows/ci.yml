@@ -115,7 +115,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
               OUTPUT_NAME="${OUTPUT_NAME}.exe"
           fi
-          go build -v -trimpath -ldflags="-s -w -X main.Version=$(git describe --tags --always --dirty) -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o "${OUTPUT_NAME}" ./cmd/rhinowaf
+          go build -v -trimpath -ldflags="-s -w -X main.Version=1.0.0 -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o "${OUTPUT_NAME}" ./cmd/rhinowaf
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -151,7 +151,7 @@ jobs:
           SHORT_SHA=$(git rev-parse --short HEAD)
 
           # Try to get the last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v2.5.0")
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
 
           # Extract version number and increment patch
           if [[ $LAST_TAG =~ v([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
@@ -161,7 +161,7 @@ jobs:
               NEW_PATCH=$((PATCH + 1))
               NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
           else
-              NEW_TAG="v2.5.1"
+              NEW_TAG="v1.0.1"
           fi
 
           # Create build version with timestamp
@@ -250,7 +250,7 @@ jobs:
 
           echo "" >> release_notes.md
           echo "---" >> release_notes.md
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 2>/dev/null || echo 'v2.5.0')...${{ steps.version.outputs.tag }}" >> release_notes.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 2>/dev/null || echo 'v1.0.0')...${{ steps.version.outputs.tag }}" >> release_notes.md
 
       - name: Create Git tag
         run: |

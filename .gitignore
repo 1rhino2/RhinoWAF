@@ -6,3 +6,9 @@
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+
+/rhinowaf
+/rhinowaf.exe
+*.exe
+coverage.out
+logs/

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"rhinowaf/waf/reload"
 	"rhinowaf/waf/reputation"
 	"rhinowaf/waf/requestid"
+	"rhinowaf/waf/templates"
 	"rhinowaf/waf/vhost"
 	"rhinowaf/waf/webhook"
 	"rhinowaf/waf/websocket"
@@ -31,7 +33,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Overridden at link time in CI builds.
+var (
+	Version   = waf.Version
+	BuildTime = "dev"
+)
+
 func main() {
+	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+	if *showVersion {
+		fmt.Printf("%s %s (built %s)\n", waf.Name, Version, BuildTime)
+		return
+	}
+
+	templates.BrandVersion = Version
+
 	logWriter := logging.SetupRotation(logging.Config{
 		Enabled:    true,
 		Filename:   "./logs/rhinowaf.log",
@@ -184,7 +201,7 @@ func main() {
 	fingerprintTracker := fingerprint.NewTracker(fingerprintConfig)
 	fingerprintMW := fingerprint.NewMiddleware(fingerprintTracker)
 
-	// WebSocket security (v2.6)
+	// WebSocket security
 	websocketHandler := websocket.NewHandler(websocket.Config{
 		Enabled:              true,
 		MaxConnectionsPerIP:  10,
@@ -237,7 +254,7 @@ func main() {
 		SessionTimeout: 3600,
 	})
 
-	// HTTP/3 server setup (v2.4.1)
+	// HTTP/3 server setup
 	http3Server := http3.NewServer(http3.Config{
 		Enabled:      false, // disabled by default
 		Port:         ":443",
@@ -268,7 +285,7 @@ func main() {
 
 	// Sensitive endpoints: restrict to localhost
 	mux.Handle("/metrics", importLocalhost(promhttp.Handler()))
-	mux.Handle("/health", importLocalhost(http.HandlerFunc(health.Handler("v2.4.1"))))
+	mux.Handle("/health", importLocalhost(http.HandlerFunc(health.Handler(Version))))
 	mux.Handle("/reload", importLocalhost(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST requests are accepted for configuration reload", http.StatusMethodNotAllowed)
@@ -336,7 +353,7 @@ func main() {
 	handler := requestid.Middleware(oauth2Handler.Handle(csrfMW.Handler(fingerprintMW.Handler(challengeMW.Handler(mux)))))
 
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║                   RhinoWAF v2.4.1                          ║")
+	fmt.Printf("║                   RhinoWAF v%-31s║\n", Version)
 	fmt.Println("║                    Starting up                             ║")
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println("")
@@ -352,7 +369,7 @@ func main() {
 	fmt.Println("   - Input Sanitization and XSS Protection")
 	fmt.Println("   - Live Configuration Reloading")
 	fmt.Println("")
-	fmt.Println("  Quality of Life Features (v2.3.1):")
+	fmt.Println("  Quality of Life:")
 	fmt.Println("   - Custom Error Pages with Branding")
 	fmt.Println("   - Webhook Notifications (Slack/Discord/Teams)")
 	fmt.Println("   - IP Reputation Checking (AbuseIPDB/IPQualityScore)")

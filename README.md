@@ -167,7 +167,7 @@ Sensitive endpoints (`/metrics`, `/health`, `/reload`, `/flood`, `/fingerprint/c
 
 ### **v1.0.0 (released)**
 
-Core WAF, vhost proxy, sanitization, DDoS limits, challenges, fingerprinting, CSRF, metrics, hot-reload, and `scripts/test-all.ps1`. See [docs/changelogs/V1.0.0.md](docs/changelogs/V1.0.0.md).
+Core WAF, vhost proxy, sanitization, DDoS limits, challenges, fingerprinting, CSRF, metrics, hot-reload, and `scripts/test-all.ps1`. See [docs/CHANGELOGS/V1.0.0.md](docs/CHANGELOGS/V1.0.0.md).
 
 ### **v1.x / v2 (planned)**
 
@@ -982,7 +982,7 @@ RhinoWAF successfully blocks 100% of critical attacks (SQL injection, XSS, crede
 
 #### **v1.0.0** — May 2026
 
-First semver release. Vhost traffic uses the same protection pipeline as built-in routes; full test suite in `scripts/test-all.ps1`. See [docs/changelogs/V1.0.0.md](docs/changelogs/V1.0.0.md).
+First semver release. Vhost traffic uses the same protection pipeline as built-in routes; full test suite in `scripts/test-all.ps1`. See [docs/CHANGELOGS/V1.0.0.md](docs/CHANGELOGS/V1.0.0.md).
 
 #### **v2.4** â€” October 28, 2025 (pre-1.0 development history)
 *HTTP Request Smuggling Protection*
@@ -1151,7 +1151,7 @@ Comprehensive documentation is available in the `docs/` directory:
 
 ### Version History
 
-- **[V1.0.0.md](docs/changelogs/V1.0.0.md)** - Version 1.0.0 release notes
+- **[V1.0.0.md](docs/CHANGELOGS/V1.0.0.md)** - Version 1.0.0 release notes
 - **[V2.2_FEATURES.md](docs/changelogs/V2.2_FEATURES.md)** - Version 2.2 release notes
 - **[V2.3_FEATURES.md](docs/changelogs/V2.3_FEATURES.md)** - Version 2.3 release notes (metrics, hot-reload, logging)
 - **[V2.4_FEATURES.md](docs/changelogs/V2.4_FEATURES.md)** - Version 2.4 release notes

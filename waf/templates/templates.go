@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// BrandVersion is shown on error pages; main may override from waf.Version.
+var BrandVersion = "1.0.0"
+
 //go:embed error.html
 var errorTemplate string
 
@@ -32,6 +35,7 @@ type ErrorData struct {
 	Message    string
 	Details    string
 	Timestamp  string
+	Version    string
 }
 
 func LoadCustomTemplate(statusCode int, templatePath string) error {
@@ -87,6 +91,7 @@ func RenderError(w http.ResponseWriter, statusCode int, title, message, details 
 		Message:    message,
 		Details:    details,
 		Timestamp:  time.Now().Format("2006-01-02 15:04:05 MST"),
+		Version:    BrandVersion,
 	}
 
 	activeTemplate := getTemplate(statusCode)

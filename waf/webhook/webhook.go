@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"rhinowaf/waf"
 	"time"
 )
 
@@ -119,7 +120,7 @@ func (n *Notifier) sendWebhook(url string, event AttackEvent) {
 		}
 
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", "RhinoWAF/2.3.1")
+		req.Header.Set("User-Agent", "RhinoWAF/"+waf.Version)
 
 		resp, err := n.client.Do(req)
 		if err != nil {
@@ -178,7 +179,7 @@ func (n *Notifier) formatSlack(event AttackEvent) map[string]interface{} {
 					{"title": "Action", "value": event.Action, "short": true},
 					{"title": "Message", "value": event.Message, "short": false},
 				},
-				"footer": "RhinoWAF v2.3.1",
+				"footer": "RhinoWAF v" + waf.Version,
 				"ts":     time.Now().Unix(),
 			},
 		},
@@ -207,7 +208,7 @@ func (n *Notifier) formatDiscord(event AttackEvent) map[string]interface{} {
 					{"name": "Action", "value": event.Action, "inline": true},
 				},
 				"footer": map[string]string{
-					"text": "RhinoWAF v2.3.1",
+					"text": "RhinoWAF v" + waf.Version,
 				},
 				"timestamp": time.Now().Format(time.RFC3339),
 			},
