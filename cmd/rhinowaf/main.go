@@ -349,8 +349,8 @@ func main() {
 		mux.Handle("/flood", importLocalhost(http.HandlerFunc(handlers.Flood)))
 	}
 
-	// Apply middleware layers: request ID -> oauth2 -> csrf -> fingerprint -> challenge -> routes
-	handler := requestid.Middleware(oauth2Handler.Handle(csrfMW.Handler(fingerprintMW.Handler(challengeMW.Handler(mux)))))
+	// protect first so attacks never get fingerprint HTML instead of a block
+	handler := requestid.Middleware(waf.ProtectMiddleware(oauth2Handler.Handle(csrfMW.Handler(fingerprintMW.Handler(challengeMW.Handler(mux))))))
 
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Printf("║                   RhinoWAF v%-31s║\n", Version)
