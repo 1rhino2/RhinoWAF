@@ -22,7 +22,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           cache: true
 
       - name: golangci-lint
@@ -40,7 +40,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Run gosec security scanner
         uses: securego/gosec@master
@@ -64,7 +64,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           cache: true
 
       - name: Download dependencies
@@ -103,7 +103,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           cache: true
 
       - name: Compute version
@@ -198,7 +198,7 @@ jobs:
 
           ### Build details
 
-          - Go 1.24+, static build (CGO_ENABLED=0)
+          - Go 1.25+, static build (CGO_ENABLED=0)
           - Symbols stripped (-s -w), reproducible paths (-trimpath)
           - SHA256 checksum shipped next to every binary
 

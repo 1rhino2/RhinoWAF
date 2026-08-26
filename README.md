@@ -4,7 +4,7 @@ A self-hosted Layer 7 web application firewall written in Go. You run it on your
 own VPS, in front of nginx, Caddy, or Traefik, and it soaks up floods, bots, and
 the usual injection noise before any of it reaches your app.
 
-[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/1rhino2/RhinoWAF?style=social)](https://github.com/1rhino2/RhinoWAF)
 
