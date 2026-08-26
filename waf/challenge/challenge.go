@@ -192,7 +192,7 @@ func (m *Manager) VerifyHCaptcha(response, remoteIP string) (bool, error) {
 
 func (m *Manager) VerifyTurnstile(response, remoteIP string) (bool, error) {
 	if m.turnstileSecret == "" {
-		return false, fmt.Errorf("Cloudflare Turnstile verification is not configured on this server")
+		return false, fmt.Errorf("cloudflare turnstile is not configured on this server")
 	}
 
 	payload := fmt.Sprintf(`{"response":"%s","secret":"%s","remoteip":"%s"}`, response, m.turnstileSecret, remoteIP)

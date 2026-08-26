@@ -1,11 +1,21 @@
+version: "2"
+
 run:
   timeout: 10m
   tests: true
 
+# tight, intentional set. errcheck/govet/ineffassign/staticcheck are the real
+# signal; gosimple folded into staticcheck in v2. bodyclose catches leaked http
+# response bodies, which matters for a reverse proxy.
 linters:
+  default: none
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
+    - staticcheck
     - bodyclose
+  exclusions:
+    # same practical excludes v1 applied by default: unchecked Close/Fprint/etc.
+    presets:
+      - std-error-handling
