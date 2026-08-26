@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,10 +9,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"rhinowaf/handlers"
 	"rhinowaf/waf"
 	"rhinowaf/waf/auth"
 	"rhinowaf/waf/challenge"
+	"rhinowaf/waf/config"
 	"rhinowaf/waf/csrf"
 	"rhinowaf/waf/ddos"
 	"rhinowaf/waf/fingerprint"
@@ -39,39 +42,74 @@ var (
 	BuildTime = "dev"
 )
 
+// envOr returns flagVal if set, else the env var, else def. Precedence is
+// flag > env > default, which is what people expect from a 12-factor service.
+func envOr(flagVal, envKey, def string) string {
+	if flagVal != "" {
+		return flagVal
+	}
+	if v := os.Getenv(envKey); v != "" {
+		return v
+	}
+	return def
+}
+
 func main() {
-	showVersion := flag.Bool("version", false, "print version and exit")
+	var (
+		showVersion = flag.Bool("version", false, "print version and exit")
+		configDir   = flag.String("config-dir", "", "directory holding ip_rules.json, geoip.json, backends.json, features.json (env RHINOWAF_CONFIG_DIR, default ./config)")
+		logDir      = flag.String("log-dir", "", "directory for log files (env RHINOWAF_LOG_DIR, default ./logs)")
+		listenFlag  = flag.String("listen", "", "address to listen on, e.g. :8080 or 127.0.0.1:8080 (env RHINOWAF_LISTEN, overrides features.json)")
+		backendFlag = flag.String("backend", "", "fallback backend URL when no backends.json (env RHINOWAF_BACKEND, overrides features.json)")
+		featuresArg = flag.String("features", "", "path to features.json (env RHINOWAF_FEATURES, default <config-dir>/features.json)")
+	)
 	flag.Parse()
+
 	if *showVersion {
 		fmt.Printf("%s %s (built %s)\n", waf.Name, Version, BuildTime)
 		return
 	}
 
+	cfgDir := envOr(*configDir, "RHINOWAF_CONFIG_DIR", "./config")
+	lgDir := envOr(*logDir, "RHINOWAF_LOG_DIR", "./logs")
+	featuresPath := envOr(*featuresArg, "RHINOWAF_FEATURES", filepath.Join(cfgDir, "features.json"))
+
+	// features.json drives the app-level middleware. A missing file just uses
+	// the built-in defaults; a broken file stops us here on purpose so a typo
+	// never silently drops protection.
+	cfg, err := config.Load(featuresPath)
+	if err != nil {
+		log.Fatalf("config error: %v", err)
+	}
+
+	// flag/env win over the file for the couple of knobs people flip most.
+	listenAddr := envOr(*listenFlag, "RHINOWAF_LISTEN", cfg.Server.Listen)
+	backendURL := envOr(*backendFlag, "RHINOWAF_BACKEND", cfg.Backend.ProxyURL)
+
 	templates.BrandVersion = Version
 
 	logWriter := logging.SetupRotation(logging.Config{
-		Enabled:    true,
-		Filename:   "./logs/rhinowaf.log",
-		MaxSize:    100,
-		MaxBackups: 3,
-		MaxAge:     28,
-		Compress:   true,
+		Enabled:    cfg.Logging.Enabled,
+		Filename:   filepath.Join(lgDir, "rhinowaf.log"),
+		MaxSize:    cfg.Logging.MaxSizeMB,
+		MaxBackups: cfg.Logging.MaxBackups,
+		MaxAge:     cfg.Logging.MaxAgeDays,
+		Compress:   cfg.Logging.Compress,
 	})
+	log.SetOutput(logWriter)
 
 	_ = ddos.InitLogger(&ddos.LoggerConfig{
-		LogPath:              "./logs/ddos.log",
-		Enabled:              true,
+		LogPath:              filepath.Join(lgDir, "ddos.log"),
+		Enabled:              cfg.Logging.Enabled,
 		LogToConsole:         true,
-		MaxSizeMB:            100,
-		MaxAgeDays:           30,
-		CompressOld:          true,
+		MaxSizeMB:            cfg.Logging.MaxSizeMB,
+		MaxAgeDays:           cfg.Logging.MaxAgeDays,
+		CompressOld:          cfg.Logging.Compress,
 		FlushInterval:        1 * time.Second,
 		BatchSize:            100,
 		HumanReadableEnabled: true,
-		HumanReadablePath:    "./logs/ddos-readable.log",
+		HumanReadablePath:    filepath.Join(lgDir, "ddos-readable.log"),
 	})
-
-	log.SetOutput(logWriter)
 
 	// webhook config - disabled by default, set URLs in config to enable
 	webhook.Init(webhook.Config{
@@ -110,17 +148,20 @@ func main() {
 		TrackAnonymous:     false,
 	})
 
-	if err := ddos.InitIPManager("./config/ip_rules.json", true); err != nil {
+	ipRulesPath := filepath.Join(cfgDir, "ip_rules.json")
+	geoDBPath := filepath.Join(cfgDir, "geoip.json")
+	backendsPath := filepath.Join(cfgDir, "backends.json")
+
+	if err := ddos.InitIPManager(ipRulesPath, true); err != nil {
 		log.Printf("Warning: Could not initialize IP manager - %v (WAF will run with limited protection)", err)
 	}
 
-	// Load GeoIP database
-	if err := geo.LoadGeoDatabase("./config/geoip.json"); err != nil {
+	if err := geo.LoadGeoDatabase(geoDBPath); err != nil {
 		log.Printf("Warning: Could not load GeoIP database - %v (geolocation blocking will be unavailable)", err)
 	}
 
 	// Multi-vhost backend configuration
-	vhostMgr, err := vhost.NewVHostManager("./config/backends.json")
+	vhostMgr, err := vhost.NewVHostManager(backendsPath)
 	if err != nil {
 		log.Printf("Warning: Could not initialize multi-vhost manager - %v (falling back to single backend)", err)
 		vhostMgr = nil
@@ -129,10 +170,17 @@ func main() {
 		log.Printf("Multi-vhost enabled: %d domains configured", stats["total_backends"])
 	}
 
+	// single-backend fallback proxy (only used when there is no backends.json)
+	if vhostMgr == nil {
+		if err := handlers.Configure(backendURL, cfg.Backend.MaxIdleConns); err != nil {
+			log.Printf("Warning: invalid backend URL %q - %v (keeping default)", backendURL, err)
+		}
+	}
+
 	// hot-reload setup so we don't need to restart on config changes
 	reloadMgr, err := reload.NewManager(reload.Config{
-		IPRulesPath:  "./config/ip_rules.json",
-		GeoDBPath:    "./config/geoip.json",
+		IPRulesPath:  ipRulesPath,
+		GeoDBPath:    geoDBPath,
 		DebounceTime: 2 * time.Second,
 		WatchEnabled: true,
 	})
@@ -159,7 +207,7 @@ func main() {
 				}
 			}
 			if vhostMgr != nil {
-				if err := vhostMgr.Reload("./config/backends.json"); err != nil {
+				if err := vhostMgr.Reload(backendsPath); err != nil {
 					log.Printf("VHost reload failed: %v", err)
 				}
 			}
@@ -189,34 +237,34 @@ func main() {
 	}
 
 	// fingerprint tracking - helps catch bot networks sharing fingerprints
-	// TODO: might want to make BlockOnExceed=true in prod
 	fingerprintConfig := fingerprint.Config{
-		Enabled:              true,
-		MaxIPsPerFingerprint: 5,
-		MaxAgeForReuse:       24 * time.Hour,
-		SuspiciousThreshold:  3,
-		BlockOnExceed:        false,
-		RequireClientData:    false,
+		Enabled:              cfg.Fingerprint.Enabled,
+		MaxIPsPerFingerprint: cfg.Fingerprint.MaxIPsPerFingerprint,
+		MaxAgeForReuse:       time.Duration(cfg.Fingerprint.MaxAgeHours) * time.Hour,
+		SuspiciousThreshold:  cfg.Fingerprint.SuspiciousThreshold,
+		BlockOnExceed:        cfg.Fingerprint.BlockOnExceed,
+		RequireClientData:    cfg.Fingerprint.RequireClientData,
+		CollectionRateLimit:  cfg.Fingerprint.CollectionRateLimit,
 	}
 	fingerprintTracker := fingerprint.NewTracker(fingerprintConfig)
 	fingerprintMW := fingerprint.NewMiddleware(fingerprintTracker)
 
 	// WebSocket security
 	websocketHandler := websocket.NewHandler(websocket.Config{
-		Enabled:              true,
-		MaxConnectionsPerIP:  10,
-		ConnectionRateLimit:  5,
-		ConnectionRateWindow: time.Minute,
-		MaxMessageSize:       1024 * 1024, // 1MB
-		MessageRateLimit:     100,
-		MessageRateWindow:    time.Minute,
-		AllowedOrigins:       []string{},
-		AllowOriginWildcard:  true,
-		BlockBinaryMessages:  false,
-		MaxViolations:        5,
-		ViolationBanDuration: 30 * time.Minute,
-		IdleTimeout:          5 * time.Minute,
-		HandshakeTimeout:     10 * time.Second,
+		Enabled:              cfg.WebSocket.Enabled,
+		MaxConnectionsPerIP:  cfg.WebSocket.MaxConnectionsPerIP,
+		ConnectionRateLimit:  cfg.WebSocket.ConnectionRateLimit,
+		ConnectionRateWindow: time.Duration(cfg.WebSocket.ConnectionRateWindowSeconds) * time.Second,
+		MaxMessageSize:       cfg.WebSocket.MaxMessageSize,
+		MessageRateLimit:     cfg.WebSocket.MessageRateLimit,
+		MessageRateWindow:    time.Duration(cfg.WebSocket.MessageRateWindowSeconds) * time.Second,
+		AllowedOrigins:       cfg.WebSocket.AllowedOrigins,
+		AllowOriginWildcard:  cfg.WebSocket.AllowOriginWildcard,
+		BlockBinaryMessages:  cfg.WebSocket.BlockBinaryMessages,
+		MaxViolations:        cfg.WebSocket.MaxViolations,
+		ViolationBanDuration: time.Duration(cfg.WebSocket.ViolationBanDurationMinutes) * time.Minute,
+		IdleTimeout:          time.Duration(cfg.WebSocket.IdleTimeoutMinutes) * time.Minute,
+		HandshakeTimeout:     time.Duration(cfg.WebSocket.HandshakeTimeoutSeconds) * time.Second,
 	})
 
 	// CSRF protection
@@ -268,11 +316,11 @@ func main() {
 
 	// Configure challenge middleware
 	challengeConfig := challenge.Config{
-		Enabled:         true, // Challenge system enabled for high-risk traffic
-		DefaultType:     challenge.TypeJavaScript,
-		Difficulty:      5, // Moderate difficulty for proof-of-work challenges
-		WhitelistPaths:  []string{"/challenge/"},
-		RequireForPaths: []string{},
+		Enabled:         cfg.Challenge.Enabled,
+		DefaultType:     challenge.ChallengeType(cfg.Challenge.DefaultType),
+		Difficulty:      cfg.Challenge.PowDifficulty,
+		WhitelistPaths:  cfg.Challenge.WhitelistPaths,
+		RequireForPaths: cfg.Challenge.RequireForPaths,
 	}
 	challengeMW := challenge.NewMiddleware(challengeMgr, challengeConfig)
 
@@ -334,12 +382,10 @@ func main() {
 
 	// Multi-vhost routing or fallback to default handlers
 	if vhostMgr != nil {
-		// Use vhost manager for routing to different backends
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			vhostMgr.ServeHTTP(w, r)
 		})
 	} else {
-		// Fallback to single backend with static handlers
 		mux.HandleFunc("/", waf.AdaptiveProtect(handlers.Home))
 		mux.HandleFunc("/api/", waf.AdaptiveProtect(handlers.APIHandler))
 		mux.HandleFunc("/about", waf.AdaptiveProtect(handlers.AboutHandler))
@@ -352,36 +398,7 @@ func main() {
 	// protect first so attacks never get fingerprint HTML instead of a block
 	handler := requestid.Middleware(waf.ProtectMiddleware(oauth2Handler.Handle(csrfMW.Handler(fingerprintMW.Handler(challengeMW.Handler(mux))))))
 
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Printf("║                   RhinoWAF v%-31s║\n", Version)
-	fmt.Println("║                    Starting up                             ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝")
-	fmt.Println("")
-	fmt.Println("  Active Security Features:")
-	fmt.Println("   - DDoS Protection with Adaptive Rate Limiting")
-	fmt.Println("   - Advanced IP Rules (60+ configurable fields)")
-	fmt.Println("   - Challenge System (JavaScript and Proof-of-Work)")
-	fmt.Println("   - Browser Fingerprinting for Bot Detection")
-	fmt.Println("   - CSRF Protection with Token Validation")
-	fmt.Println("   - WebSocket Security (Connection & Message Rate Limiting)")
-	fmt.Println("   - Geolocation-based Access Control")
-	fmt.Println("   - Proxy, Tor, and VPN Detection")
-	fmt.Println("   - Input Sanitization and XSS Protection")
-	fmt.Println("   - Live Configuration Reloading")
-	fmt.Println("")
-	fmt.Println("  Quality of Life:")
-	fmt.Println("   - Custom Error Pages with Branding")
-	fmt.Println("   - Webhook Notifications (Slack/Discord/Teams)")
-	fmt.Println("   - IP Reputation Checking (AbuseIPDB/IPQualityScore)")
-	fmt.Println("   - Connection Pooling for Backend Proxy")
-	fmt.Println("   - Automatic Log Rotation and Compression")
-	fmt.Println("   - JWT/Session-based Rate Limiting")
-	fmt.Println("")
-	fmt.Println("  Service Information:")
-	fmt.Println("   WAF is listening on http://localhost:8080")
-	fmt.Println("   Health check endpoint at /health")
-	fmt.Println("   Prometheus metrics available at /metrics")
-	fmt.Println("   Configuration reload endpoint at /reload (POST)")
+	printBanner(Version, listenAddr, backendURL, lgDir, vhostMgr != nil)
 
 	// Start HTTP/3 server if enabled
 	if http3Server.IsRunning() || os.Getenv("HTTP3_ENABLED") == "true" {
@@ -389,14 +406,77 @@ func main() {
 			log.Printf("[HTTP/3] Failed to start: %v", err)
 		}
 	}
-	fmt.Println("   Automatic file watching is active")
-	fmt.Println("   Manual reload available with: kill -SIGHUP <pid>")
-	fmt.Println("   Attack logs being written to ./logs/ddos.log")
-	fmt.Println("   General logs being written to ./logs/rhinowaf.log")
-	fmt.Println("   Backend proxy target: http://localhost:9000")
-	fmt.Println("")
-	fmt.Println("RhinoWAF is ready and protecting your application.")
-	fmt.Println("")
 
-	log.Fatal(http.ListenAndServe(":8080", handler))
+	// real timeouts so the WAF's own listener isn't a slowloris target
+	srv := &http.Server{
+		Addr:              listenAddr,
+		Handler:           handler,
+		ReadHeaderTimeout: time.Duration(cfg.Server.ReadHeaderTimeoutSeconds) * time.Second,
+		ReadTimeout:       time.Duration(cfg.Server.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout:      time.Duration(cfg.Server.WriteTimeoutSeconds) * time.Second,
+		IdleTimeout:       time.Duration(cfg.Server.IdleTimeoutSeconds) * time.Second,
+		MaxHeaderBytes:    cfg.Server.MaxHeaderBytes,
+	}
+
+	// graceful shutdown: drain in-flight requests on Ctrl-C / SIGTERM
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-stop
+		log.Println("Shutdown signal received, draining connections...")
+		fmt.Println("\nShutting down RhinoWAF, draining in-flight requests...")
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			log.Printf("Graceful shutdown failed, forcing close: %v", err)
+			_ = srv.Close()
+		}
+	}()
+
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("server error: %v", err)
+	}
+	log.Println("RhinoWAF stopped")
+	fmt.Println("RhinoWAF stopped cleanly.")
+}
+
+func printBanner(version, listenAddr, backendURL, logDir string, vhostMode bool) {
+	fmt.Println("==============================================================")
+	fmt.Printf("  RhinoWAF %s - starting up\n", version)
+	fmt.Println("==============================================================")
+	fmt.Println()
+	fmt.Println("  Active protection:")
+	fmt.Println("   - DDoS / rate limiting with adaptive limits")
+	fmt.Println("   - IP rules (per-IP controls) and geo / ASN blocking")
+	fmt.Println("   - Challenge system (JavaScript and proof-of-work)")
+	fmt.Println("   - Browser fingerprinting for bot-network detection")
+	fmt.Println("   - CSRF token validation")
+	fmt.Println("   - WebSocket connection and message limits")
+	fmt.Println("   - HTTP request smuggling detection")
+	fmt.Println("   - Input sanitization (SQLi / XSS / traversal / injection)")
+	fmt.Println("   - Live config reload (auto file-watch + SIGHUP)")
+	fmt.Println()
+	fmt.Println("  Listening:")
+	fmt.Printf("   - WAF:        http://%s\n", displayAddr(listenAddr))
+	fmt.Printf("   - Health:     http://%s/health (localhost only)\n", displayAddr(listenAddr))
+	fmt.Printf("   - Metrics:    http://%s/metrics (localhost only)\n", displayAddr(listenAddr))
+	fmt.Printf("   - Reload:     POST http://%s/reload (localhost only)\n", displayAddr(listenAddr))
+	if vhostMode {
+		fmt.Println("   - Routing:    multi-vhost (config/backends.json)")
+	} else {
+		fmt.Printf("   - Backend:    %s\n", backendURL)
+	}
+	fmt.Printf("   - Logs:       %s\n", logDir)
+	fmt.Println("   - Reload cmd: kill -SIGHUP <pid>")
+	fmt.Println()
+	fmt.Println("RhinoWAF is ready and protecting your application.")
+	fmt.Println()
+}
+
+// displayAddr turns ":8080" into "localhost:8080" for a clickable banner line.
+func displayAddr(addr string) string {
+	if len(addr) > 0 && addr[0] == ':' {
+		return "localhost" + addr
+	}
+	return addr
 }

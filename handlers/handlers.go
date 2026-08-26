@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// Backend server URL
-const backendURL = "http://localhost:9000"
+// default backend if main never calls Configure (keeps older behavior)
+const defaultBackendURL = "http://localhost:9000"
 
 // ReverseProxy handles proxying requests to the backend
 var proxy *httputil.ReverseProxy
@@ -35,21 +35,42 @@ func init() {
 		IdleTimeout:          5 * time.Minute,
 		HandshakeTimeout:     10 * time.Second,
 	})
+	buildProxy(defaultBackendURL, 100)
+}
+
+// Configure points the fallback single-backend proxy at a different upstream.
+// Call it before wiring routes; safe to skip (init sets a working default).
+// If backendURL is unparseable the current proxy is kept.
+func Configure(backendURL string, maxIdleConns int) error {
+	if _, err := url.Parse(backendURL); err != nil {
+		return err
+	}
+	if maxIdleConns <= 0 {
+		maxIdleConns = 100
+	}
+	buildProxy(backendURL, maxIdleConns)
+	return nil
+}
+
+func buildProxy(backendURL string, maxIdleConns int) {
 	target, _ := url.Parse(backendURL)
 
-	// Create custom transport with connection pooling
+	// custom transport with connection pooling
 	transport := &http.Transport{
-		MaxIdleConns:        100,              // Max idle connections across all hosts
-		MaxIdleConnsPerHost: 10,               // Max idle connections per host
-		IdleConnTimeout:     90 * time.Second, // How long idle connections stay open
-		DisableKeepAlives:   false,            // Enable keep-alive
-		DisableCompression:  false,            // Enable compression
+		MaxIdleConns:        maxIdleConns,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		DisableKeepAlives:   false,
+		DisableCompression:  false,
 	}
 
 	proxy = httputil.NewSingleHostReverseProxy(target)
 	proxy.Transport = transport
+	// backend down / unreachable is a gateway failure, say so with 502 instead
+	// of a bare 200 body that clients mistake for a real page
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		fmt.Fprintf(w, "Unable to connect to backend server. Please try again in a moment.")
+		w.WriteHeader(http.StatusBadGateway)
+		fmt.Fprintln(w, "Unable to connect to backend server. Please try again in a moment.")
 	}
 }
 
