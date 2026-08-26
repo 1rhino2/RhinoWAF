@@ -45,8 +45,12 @@ func TestProtectRequestBlocksSmugglingHeaders(t *testing.T) {
 	}
 }
 
-func TestVersionIsOnePointZero(t *testing.T) {
-	if Version != "1.0.0" {
-		t.Fatalf("expected 1.0.0 branding, got %s", Version)
+func TestVersionBranding(t *testing.T) {
+	if Name != "RhinoWAF" {
+		t.Fatalf("expected RhinoWAF branding, got %s", Name)
+	}
+	// stay on the 1.0.x line the project reset to; bump here on a minor/major
+	if !strings.HasPrefix(Version, "1.0.") {
+		t.Fatalf("expected a 1.0.x version, got %s", Version)
 	}
 }
