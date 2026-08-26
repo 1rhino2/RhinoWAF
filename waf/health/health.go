@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -85,12 +86,5 @@ func formatTime(value int, unit string) string {
 	if value == 1 {
 		return "1 " + unit
 	}
-	return formatInt(value) + " " + unit + "s"
-}
-
-func formatInt(n int) string {
-	if n < 10 {
-		return string(rune('0' + n))
-	}
-	return string(rune('0'+n/10)) + string(rune('0'+n%10))
+	return strconv.Itoa(value) + " " + unit + "s"
 }
