@@ -3,6 +3,8 @@ package waf
 import (
 	"context"
 	"net/http"
+	"rhinowaf/waf/autoban"
+	"rhinowaf/waf/cookie"
 	"rhinowaf/waf/ddos"
 	"rhinowaf/waf/engine"
 	"rhinowaf/waf/requestid"
@@ -21,7 +23,20 @@ const protectedKey ctxKey = 1
 var (
 	globalWSHandler      *websocket.Handler
 	globalSmuggleChecker *smuggling.Detector
+	globalAutoBan        *autoban.Tracker
+	globalCookieSigner   *cookie.Signer
 )
+
+// SetAutoBan installs the persistent auto-ban tracker built in main. Repeat
+// offenders (engine blocks) get a temporary IP ban that outlives a restart.
+func SetAutoBan(t *autoban.Tracker) { globalAutoBan = t }
+
+// SetCookieSigner installs the process cookie signer (challenge/fingerprint
+// passes). Exposed so challenge and fingerprint middleware share one key.
+func SetCookieSigner(s *cookie.Signer) { globalCookieSigner = s }
+
+// CookieSigner returns the shared signer, may be nil before main sets it.
+func CookieSigner() *cookie.Signer { return globalCookieSigner }
 
 // SetWebSocketHandler swaps in the handler built from features.json. Without
 // this the websocket section only fed the stats endpoint and enforcement ran
@@ -89,6 +104,12 @@ func ProtectRequest(w http.ResponseWriter, r *http.Request) bool {
 
 	ip := ddos.GetIP(r)
 
+	// an auto-banned repeat offender is dropped before we spend work on it
+	if globalAutoBan != nil && globalAutoBan.IsBanned(ip) {
+		templates.RenderBlockedError(w, ip, "temporarily banned for repeated violations")
+		return false
+	}
+
 	if valid, reason := sanitize.ValidateHeaders(r); !valid {
 		templates.RenderBlockedError(w, ip, reason)
 		return false
@@ -135,6 +156,9 @@ func ProtectRequest(w http.ResponseWriter, r *http.Request) bool {
 			rules := ""
 			if len(v.Evidence) > 0 {
 				rules = v.RuleIDs()
+			}
+			if globalAutoBan != nil {
+				globalAutoBan.RecordViolation(ip, v.Summary())
 			}
 			templates.RenderEngineBlock(w, ip, requestid.FromRequest(r), v.Summary(), rules)
 			return false

@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"rhinowaf/waf/cookie"
 	"rhinowaf/waf/security"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -19,7 +21,19 @@ type Config struct {
 type Middleware struct {
 	manager *Manager
 	config  Config
+	signer  *cookie.Signer
+	passTTL time.Duration
 }
+
+// SetSigner wires the shared cookie signer so a solved challenge issues a
+// signed pass cookie that survives a restart (the old in-memory session
+// token did not). ttl is how long a pass is good for.
+func (m *Middleware) SetSigner(s *cookie.Signer, ttl time.Duration) {
+	m.signer = s
+	m.passTTL = ttl
+}
+
+const passCookie = "waf_ok"
 
 func NewMiddleware(manager *Manager, config Config) *Middleware {
 	return &Middleware{
@@ -41,9 +55,19 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		}
 
 		ip := m.getIP(r)
-		token := m.getTokenFromCookie(r)
 
+		// a valid signed pass bound to this ip class skips the whole dance,
+		// and unlike the old session token it works after a restart.
+		if m.signer != nil {
+			if payload, ok := m.signer.Get(r, passCookie); ok && payload == cookie.IPClass(ip) {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		token := m.getTokenFromCookie(r)
 		if token != "" && m.manager.VerifySession(token) {
+			m.issuePass(w, r, ip)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -142,6 +166,7 @@ func (m *Middleware) VerifyHandler(w http.ResponseWriter, r *http.Request) {
 
 	if verified {
 		m.manager.MarkVerified(req.Token)
+		m.issuePass(w, r, ip)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
@@ -153,6 +178,18 @@ func (m *Middleware) VerifyHandler(w http.ResponseWriter, r *http.Request) {
 			"error":   errorMessage,
 		})
 	}
+}
+
+// issuePass sets the signed pass cookie bound to the client's ip class.
+func (m *Middleware) issuePass(w http.ResponseWriter, r *http.Request, ip string) {
+	if m.signer == nil {
+		return
+	}
+	ttl := m.passTTL
+	if ttl <= 0 {
+		ttl = 12 * time.Hour
+	}
+	m.signer.Set(w, r, passCookie, cookie.IPClass(ip), ttl)
 }
 
 func (m *Middleware) isWhitelisted(path string) bool {

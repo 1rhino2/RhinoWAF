@@ -13,6 +13,7 @@ import (
 	"rhinowaf/handlers"
 	"rhinowaf/waf"
 	"rhinowaf/waf/auth"
+	"rhinowaf/waf/autoban"
 	"rhinowaf/waf/challenge"
 	"rhinowaf/waf/config"
 	"rhinowaf/waf/csrf"
@@ -28,6 +29,8 @@ import (
 	"rhinowaf/waf/reputation"
 	"rhinowaf/waf/requestid"
 	"rhinowaf/waf/security"
+	"rhinowaf/waf/state"
+	enginestate "rhinowaf/waf/statewire"
 	"rhinowaf/waf/templates"
 	"rhinowaf/waf/vhost"
 	"rhinowaf/waf/webhook"
@@ -190,6 +193,50 @@ func main() {
 	if rs := eng.Ruleset(); rs != nil {
 		log.Printf("engine: %d rules loaded (ruleset %s), mode=%s paranoia=%d", rs.RuleCount(), rs.Hash(), cfg.Engine.Mode, cfg.Engine.Paranoia)
 	}
+
+	// persistent state: bans, the cookie signing key, reputation cache. a
+	// missing or unwritable file just runs in memory (see waf/state).
+	statePath := cfg.State.Path
+	if statePath == "" {
+		statePath = filepath.Join(lgDir, "rhinowaf.db")
+	}
+	var stateDB *state.DB
+	if cfg.State.Enabled {
+		stateDB = state.Open(statePath)
+		defer func() { _ = stateDB.Close() }()
+		if stateDB.Persistent() {
+			log.Printf("state: persisting to %s", stateDB.Path())
+		} else {
+			log.Printf("state: running in memory (could not open %s)", statePath)
+		}
+	}
+
+	// cookie signer: reuse the persisted key so challenge/fingerprint passes
+	// survive a restart, generate and store one on first run.
+	cookieSigner := enginestate.SignerFromState(stateDB)
+	waf.SetCookieSigner(cookieSigner)
+
+	// auto-ban repeat offenders, persisted so a ban outlives a restart.
+	autoBan := autoban.NewTracker(autoban.Config{
+		Enabled:        cfg.AutoBan.Enabled,
+		ViolationLimit: cfg.AutoBan.Threshold,
+		WindowDuration: time.Duration(cfg.AutoBan.WindowSeconds) * time.Second,
+		BanDuration:    time.Duration(cfg.AutoBan.BanMinutes) * time.Minute,
+		PermanentAfter: 1000000, // temp bans only, escalation is a later feature
+	})
+	autoBan.SetPersist(enginestate.BanStore{DB: stateDB})
+	autoBan.OnBan(func(ip, reason string, until time.Time) {
+		dur := time.Until(until)
+		if dur <= 0 {
+			dur = time.Duration(cfg.AutoBan.BanMinutes) * time.Minute
+		}
+		if mgr := ddos.GetIPManager(); mgr != nil {
+			_ = mgr.AutoBanIP(ip, "autoban: "+reason, dur)
+		}
+		webhook.Send(webhook.AttackEvent{EventType: "autoban", IP: ip, Severity: "critical", Message: "auto-banned repeat offender", Details: reason, Action: "blocked"})
+		log.Printf("[AUTOBAN] %s banned for %s (%s)", ip, dur.Round(time.Second), reason)
+	})
+	waf.SetAutoBan(autoBan)
 
 	ipRulesPath := filepath.Join(cfgDir, "ip_rules.json")
 	geoDBPath := filepath.Join(cfgDir, "geoip.json")
@@ -364,6 +411,7 @@ func main() {
 		RequireForPaths: cfg.Challenge.RequireForPaths,
 	}
 	challengeMW := challenge.NewMiddleware(challengeMgr, challengeConfig)
+	challengeMW.SetSigner(cookieSigner, time.Duration(cfg.Challenge.PassTTLHours)*time.Hour)
 
 	// Import localhost-only middleware
 	importLocalhost := func(h http.Handler) http.Handler {

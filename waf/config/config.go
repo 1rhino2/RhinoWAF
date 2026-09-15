@@ -30,6 +30,8 @@ type Config struct {
 	CSRF        CSRFConfig        `json:"csrf"`
 	Logging     LoggingConfig     `json:"logging"`
 	Engine      engine.Config     `json:"engine"`
+	State       StateConfig       `json:"state"`
+	AutoBan     AutoBanConfig     `json:"autoban"`
 }
 
 type ServerConfig struct {
@@ -59,6 +61,9 @@ type ChallengeConfig struct {
 	PowDifficulty   int      `json:"pow_difficulty"`
 	WhitelistPaths  []string `json:"whitelist_paths"`
 	RequireForPaths []string `json:"require_for_paths"`
+	// how long a solved-challenge pass cookie is honored. survives restart
+	// because the signing key is persisted. 0 falls back to 12h.
+	PassTTLHours int `json:"pass_ttl_hours"`
 }
 
 type FingerprintConfig struct {
@@ -99,6 +104,22 @@ type CSRFConfig struct {
 	ExemptPaths   []string `json:"exempt_paths"`
 }
 
+// StateConfig points at the bbolt file that keeps bans and the cookie key
+// across restarts. Empty path means "next to the logs".
+type StateConfig struct {
+	Enabled bool   `json:"enabled"`
+	Path    string `json:"path"`
+}
+
+// AutoBanConfig turns repeat offenders into a temporary IP ban. Counts a
+// violation each time the engine blocks a request from an IP.
+type AutoBanConfig struct {
+	Enabled       bool `json:"enabled"`
+	Threshold     int  `json:"threshold"`
+	WindowSeconds int  `json:"window_seconds"`
+	BanMinutes    int  `json:"ban_minutes"`
+}
+
 type LoggingConfig struct {
 	Enabled    bool `json:"enabled"`
 	MaxSizeMB  int  `json:"max_size_mb"`
@@ -132,6 +153,7 @@ func Default() *Config {
 			PowDifficulty:   5,
 			WhitelistPaths:  []string{"/challenge/"},
 			RequireForPaths: []string{},
+			PassTTLHours:    12,
 		},
 		Fingerprint: FingerprintConfig{
 			Enabled:              true,
@@ -172,7 +194,9 @@ func Default() *Config {
 			MaxBackups: 3,
 			Compress:   true,
 		},
-		Engine: engine.DefaultConfig(),
+		Engine:  engine.DefaultConfig(),
+		State:   StateConfig{Enabled: true},
+		AutoBan: AutoBanConfig{Enabled: true, Threshold: 6, WindowSeconds: 120, BanMinutes: 60},
 	}
 }
 
