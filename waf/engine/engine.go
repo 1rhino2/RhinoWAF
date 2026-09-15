@@ -331,3 +331,10 @@ func nonZero64(v, def int64) int64 {
 func errf(f string, a ...any) error { return fmt.Errorf(f, a...) }
 
 var _ = time.Now
+
+// Active reports whether the process engine is installed and enabled, so the
+// request path knows to use it instead of the legacy sanitizer.
+func Active() bool {
+	e := Default()
+	return e != nil && e.cfg.Enabled && e.cur.Load() != nil
+}

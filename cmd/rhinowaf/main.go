@@ -17,6 +17,7 @@ import (
 	"rhinowaf/waf/config"
 	"rhinowaf/waf/csrf"
 	"rhinowaf/waf/ddos"
+	"rhinowaf/waf/engine"
 	"rhinowaf/waf/fingerprint"
 	"rhinowaf/waf/geo"
 	"rhinowaf/waf/health"
@@ -53,6 +54,18 @@ func envOr(flagVal, envKey, def string) string {
 		return v
 	}
 	return def
+}
+
+// relToCfg resolves a rules dir relative to the config dir. empty stays empty
+// (meaning "use the embedded set" / "no extra dir").
+func relToCfg(cfgDir, dir string) string {
+	if dir == "" {
+		return ""
+	}
+	if filepath.IsAbs(dir) {
+		return dir
+	}
+	return filepath.Join(cfgDir, dir)
 }
 
 func main() {
@@ -156,6 +169,27 @@ func main() {
 		WhitelistUsernames: []string{},
 		TrackAnonymous:     false,
 	})
+
+	// detection engine: embedded default rules, optionally replaced by
+	// engine.rules_dir and layered with engine.extra_rules_dir, both relative
+	// to the config dir. a bad ruleset stops us here, same as a bad config.
+	engLoader := engine.Loader{
+		RulesDir: relToCfg(cfgDir, cfg.Engine.RulesDir),
+		ExtraDir: relToCfg(cfgDir, cfg.Engine.ExtraRulesDir),
+	}
+	engRuleset, err := engLoader.Load()
+	if err != nil {
+		log.Fatalf("engine: %v", err)
+	}
+	eng := engine.New(cfg.Engine, engRuleset)
+	if cfg.Logging.Enabled {
+		eng.SetSink(engine.NewFileSink(filepath.Join(lgDir, "engine.log"),
+			cfg.Logging.MaxSizeMB, cfg.Logging.MaxAgeDays, cfg.Logging.MaxBackups, cfg.Logging.Compress))
+	}
+	engine.SetDefault(eng)
+	if rs := eng.Ruleset(); rs != nil {
+		log.Printf("engine: %d rules loaded (ruleset %s), mode=%s paranoia=%d", rs.RuleCount(), rs.Hash(), cfg.Engine.Mode, cfg.Engine.Paranoia)
+	}
 
 	ipRulesPath := filepath.Join(cfgDir, "ip_rules.json")
 	geoDBPath := filepath.Join(cfgDir, "geoip.json")

@@ -309,3 +309,12 @@ func atoi(s string) (int, error) {
 	}
 	return n, nil
 }
+
+// RuleCount is the number of compiled rules, for logs and stats.
+func (rs *Ruleset) RuleCount() int { return len(rs.rules) }
+
+// Hash identifies the compiled set.
+func (rs *Ruleset) Hash() string { return rs.hash }
+
+// Counts returns per-category rule counts.
+func (rs *Ruleset) Counts() map[string]int { return rs.counts }

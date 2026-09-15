@@ -132,3 +132,21 @@ func RenderChallengeError(w http.ResponseWriter) {
 		"Please complete the security challenge to continue.",
 		"This helps us protect our service from automated attacks.")
 }
+
+// RenderEngineBlock renders the WAF engine block page. rules is the comma
+// list of matched rule ids, detail the human summary; both may be empty when
+// explain is set to none.
+func RenderEngineBlock(w http.ResponseWriter, ip, requestID, summary, rules string) {
+	det := "Request ID: " + requestID
+	if summary != "" {
+		det += "\nReason: " + summary
+	}
+	if rules != "" {
+		det += "\nRules: " + rules
+	}
+	det += "\nIP: " + ip
+	RenderError(w, http.StatusForbidden,
+		"Request Blocked",
+		"Your request was blocked by the RhinoWAF detection engine.",
+		det)
+}

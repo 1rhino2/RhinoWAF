@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	"rhinowaf/waf/engine"
 )
 
 // Config is the parsed features.json. Every section maps to real wiring in
@@ -27,6 +29,7 @@ type Config struct {
 	WebSocket   WebSocketConfig   `json:"websocket"`
 	CSRF        CSRFConfig        `json:"csrf"`
 	Logging     LoggingConfig     `json:"logging"`
+	Engine      engine.Config     `json:"engine"`
 }
 
 type ServerConfig struct {
@@ -169,6 +172,7 @@ func Default() *Config {
 			MaxBackups: 3,
 			Compress:   true,
 		},
+		Engine: engine.DefaultConfig(),
 	}
 }
 
@@ -231,6 +235,9 @@ func (c *Config) validate() error {
 	}
 	if c.CSRF.TokenTTLHours < 0 {
 		return fmt.Errorf("csrf.token_ttl_hours must be >= 0")
+	}
+	if err := c.Engine.Validate(); err != nil {
+		return err
 	}
 	return nil
 }

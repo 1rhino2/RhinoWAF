@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"rhinowaf/waf/ddos"
+	"rhinowaf/waf/engine"
+	"rhinowaf/waf/requestid"
 	"rhinowaf/waf/sanitize"
 	"rhinowaf/waf/smuggling"
 	"rhinowaf/waf/templates"
@@ -123,7 +125,21 @@ func ProtectRequest(w http.ResponseWriter, r *http.Request) bool {
 		}
 	}
 
-	if sanitize.IsMalicious(r) {
+	// detection: the engine is the gate when enabled, the legacy sanitizer
+	// is the fallback for anyone who turns it off.
+	if engine.Active() {
+		eng := engine.Default()
+		v := eng.Inspect(r)
+		eng.LogEvent(v, requestid.FromRequest(r), ip, r.Host, r.Method, r.URL.Path)
+		if v.Blocked() {
+			rules := ""
+			if len(v.Evidence) > 0 {
+				rules = v.RuleIDs()
+			}
+			templates.RenderEngineBlock(w, ip, requestid.FromRequest(r), v.Summary(), rules)
+			return false
+		}
+	} else if sanitize.IsMalicious(r) {
 		templates.RenderMaliciousError(w)
 		return false
 	}
