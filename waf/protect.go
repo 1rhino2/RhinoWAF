@@ -4,9 +4,11 @@ import (
 	"context"
 	"net/http"
 	"rhinowaf/waf/autoban"
+	"rhinowaf/waf/bodylimits"
 	"rhinowaf/waf/cookie"
 	"rhinowaf/waf/ddos"
 	"rhinowaf/waf/engine"
+	"rhinowaf/waf/exemptions"
 	"rhinowaf/waf/requestid"
 	"rhinowaf/waf/sanitize"
 	"rhinowaf/waf/smuggling"
@@ -25,7 +27,33 @@ var (
 	globalSmuggleChecker *smuggling.Detector
 	globalAutoBan        *autoban.Tracker
 	globalCookieSigner   *cookie.Signer
+	globalExemptions     *exemptions.Handler
+	globalBodyLimiter    *bodylimits.Limiter
+	globalHoneypot       map[string]bool
+	globalHoneypotBan    time.Duration
 )
+
+// SetExemptions installs the exemption handler (trusted IPs, UAs, paths that
+// skip rate limiting and the engine).
+func SetExemptions(h *exemptions.Handler) { globalExemptions = h }
+
+// SetBodyLimiter installs the request body size limiter.
+func SetBodyLimiter(l *bodylimits.Limiter) { globalBodyLimiter = l }
+
+// SetHoneypot installs the honeypot path set and the ban duration. A hit on
+// any of these paths bans the client immediately.
+func SetHoneypot(paths []string, ban time.Duration) {
+	if len(paths) == 0 {
+		globalHoneypot = nil
+		return
+	}
+	m := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		m[p] = true
+	}
+	globalHoneypot = m
+	globalHoneypotBan = ban
+}
 
 // SetAutoBan installs the persistent auto-ban tracker built in main. Repeat
 // offenders (engine blocks) get a temporary IP ban that outlives a restart.
@@ -110,6 +138,15 @@ func ProtectRequest(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 
+	// honeypot: a hit on a path no real client requests is an instant ban
+	if globalHoneypot != nil && globalHoneypot[r.URL.Path] {
+		if globalAutoBan != nil {
+			globalAutoBan.BanNow(ip, "honeypot "+r.URL.Path, globalHoneypotBan)
+		}
+		templates.RenderBlockedError(w, ip, "access denied")
+		return false
+	}
+
 	if valid, reason := sanitize.ValidateHeaders(r); !valid {
 		templates.RenderBlockedError(w, ip, reason)
 		return false
@@ -139,11 +176,27 @@ func ProtectRequest(w http.ResponseWriter, r *http.Request) bool {
 		}
 	}
 
-	if !isTrustedClient(r.UserAgent()) {
+	exempt := (globalExemptions != nil && globalExemptions.IsExempt(ip, r.UserAgent(), r.URL.Path)) || isTrustedClient(r.UserAgent())
+	if !exempt {
 		if !ddos.AllowL7(ip) || !ddos.AllowL4(ip) {
 			templates.RenderRateLimitError(w, ip)
 			return false
 		}
+	}
+
+	// body size cap: 413 before the backend or the engine reads it
+	if globalBodyLimiter != nil {
+		if ok, reason := globalBodyLimiter.Check(r); !ok {
+			templates.RenderError(w, 413, "Payload Too Large", "Your request body exceeds the allowed size.", reason)
+			return false
+		}
+	}
+
+	// exempt clients skip the detection engine too, but still had header
+	// validation and smuggling checks above
+	if exempt {
+		sanitize.All(r)
+		return true
 	}
 
 	// detection: the engine is the gate when enabled, the legacy sanitizer

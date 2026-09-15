@@ -14,11 +14,13 @@ import (
 	"rhinowaf/waf"
 	"rhinowaf/waf/auth"
 	"rhinowaf/waf/autoban"
+	"rhinowaf/waf/bodylimits"
 	"rhinowaf/waf/challenge"
 	"rhinowaf/waf/config"
 	"rhinowaf/waf/csrf"
 	"rhinowaf/waf/ddos"
 	"rhinowaf/waf/engine"
+	"rhinowaf/waf/exemptions"
 	"rhinowaf/waf/fingerprint"
 	"rhinowaf/waf/geo"
 	"rhinowaf/waf/health"
@@ -237,6 +239,32 @@ func main() {
 		log.Printf("[AUTOBAN] %s banned for %s (%s)", ip, dur.Round(time.Second), reason)
 	})
 	waf.SetAutoBan(autoBan)
+
+	// exemptions: trusted clients skip rate limiting and the engine
+	if exemptHandler, eerr := exemptions.NewHandler(exemptions.Config{
+		Enabled:    cfg.Exemptions.Enabled,
+		IPs:        cfg.Exemptions.IPs,
+		CIDRs:      cfg.Exemptions.CIDRs,
+		UserAgents: cfg.Exemptions.UserAgents,
+		Paths:      cfg.Exemptions.Paths,
+	}); eerr != nil {
+		log.Fatalf("exemptions: %v", eerr)
+	} else {
+		waf.SetExemptions(exemptHandler)
+	}
+
+	// body size limits, 413 before the backend
+	waf.SetBodyLimiter(bodylimits.NewLimiter(bodylimits.Config{
+		Enabled:     cfg.BodyLimits.Enabled,
+		GlobalLimit: cfg.BodyLimits.DefaultBytes,
+		PathLimits:  cfg.BodyLimits.PerPath,
+	}))
+
+	// honeypot trap paths, instant ban
+	if cfg.Honeypot.Enabled {
+		waf.SetHoneypot(cfg.Honeypot.Paths, time.Duration(cfg.Honeypot.BanMinutes)*time.Minute)
+		log.Printf("honeypot: %d trap paths armed", len(cfg.Honeypot.Paths))
+	}
 
 	ipRulesPath := filepath.Join(cfgDir, "ip_rules.json")
 	geoDBPath := filepath.Join(cfgDir, "geoip.json")

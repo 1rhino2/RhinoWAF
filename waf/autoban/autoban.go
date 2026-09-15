@@ -121,6 +121,22 @@ func (t *Tracker) RecordViolation(ip, reason string) {
 	}
 }
 
+// BanNow bans an IP immediately (honeypot hit, manual), bypassing the
+// violation count. Persisted and reported through the ban callback.
+func (t *Tracker) BanNow(ip, reason string, dur time.Duration) {
+	t.mu.Lock()
+	until := time.Now().Add(dur)
+	t.banned[ip] = until
+	if t.store != nil {
+		t.store.SaveBan(ip, until, false)
+	}
+	cb := t.onBan
+	t.mu.Unlock()
+	if cb != nil {
+		cb(ip, reason, until)
+	}
+}
+
 func (t *Tracker) IsBanned(ip string) bool {
 	if !t.config.Enabled {
 		return false

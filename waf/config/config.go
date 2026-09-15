@@ -32,6 +32,9 @@ type Config struct {
 	Engine      engine.Config     `json:"engine"`
 	State       StateConfig       `json:"state"`
 	AutoBan     AutoBanConfig     `json:"autoban"`
+	Exemptions  ExemptionsConfig  `json:"exemptions"`
+	BodyLimits  BodyLimitsConfig  `json:"body_limits"`
+	Honeypot    HoneypotConfig    `json:"honeypot"`
 }
 
 type ServerConfig struct {
@@ -118,6 +121,34 @@ type AutoBanConfig struct {
 	Threshold     int  `json:"threshold"`
 	WindowSeconds int  `json:"window_seconds"`
 	BanMinutes    int  `json:"ban_minutes"`
+}
+
+// ExemptionsConfig lists clients that skip rate limiting and the detection
+// engine (they still get header validation and smuggling checks). Use it for
+// your own health checks, monitoring, and trusted partner integrations.
+type ExemptionsConfig struct {
+	Enabled    bool     `json:"enabled"`
+	IPs        []string `json:"ips"`
+	CIDRs      []string `json:"cidrs"`
+	UserAgents []string `json:"user_agents"`
+	Paths      []string `json:"paths"`
+}
+
+// BodyLimitsConfig caps request body size, globally and per path glob. A body
+// over the limit gets a 413 before it reaches the backend.
+type BodyLimitsConfig struct {
+	Enabled      bool             `json:"enabled"`
+	DefaultBytes int64            `json:"default_bytes"`
+	PerPath      map[string]int64 `json:"per_path"`
+}
+
+// HoneypotConfig bans anyone who touches a path a real client never would.
+// Ship it off by default with a starter list, since the paths depend on what
+// your backends actually serve.
+type HoneypotConfig struct {
+	Enabled    bool     `json:"enabled"`
+	Paths      []string `json:"paths"`
+	BanMinutes int      `json:"ban_minutes"`
 }
 
 type LoggingConfig struct {
@@ -262,6 +293,14 @@ func (c *Config) validate() error {
 	}
 	if err := c.Engine.Validate(); err != nil {
 		return err
+	}
+	if c.BodyLimits.DefaultBytes < 0 {
+		return fmt.Errorf("body_limits.default_bytes must be >= 0")
+	}
+	for _, cidr := range c.Exemptions.CIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("exemptions.cidrs entry %q is not a CIDR", cidr)
+		}
 	}
 	return nil
 }
