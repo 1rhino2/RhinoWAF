@@ -201,6 +201,7 @@ type IPManager struct {
 	asnRulesMap     map[string]*ASNRule // ASN -> rule
 	autoSave        bool
 	cleanupTimer    *time.Ticker
+	lastReqMu       sync.Mutex
 	lastRequestTime map[string]time.Time // IP -> last request timestamp for interval checks
 }
 
@@ -296,13 +297,16 @@ func (m *IPManager) load() error {
 		return err
 	}
 
+	// parse before taking the lock so a broken file leaves the old rules live
+	cfg := &IPConfig{}
+	if err := json.Unmarshal(data, cfg); err != nil {
+		return fmt.Errorf("failed to parse IP config: %w", err)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.config = &IPConfig{}
-	if err := json.Unmarshal(data, m.config); err != nil {
-		return fmt.Errorf("failed to parse IP config: %w", err)
-	}
+	m.config = cfg
 
 	// Build maps for fast lookup
 	m.bannedMap = make(map[string]*IPRule)
@@ -678,6 +682,15 @@ func (m *IPManager) cleanupExpiredRules() {
 
 		m.mu.Unlock()
 
+		// interval bookkeeping only matters for recent traffic
+		m.lastReqMu.Lock()
+		for ip, ts := range m.lastRequestTime {
+			if now.Sub(ts) > time.Hour {
+				delete(m.lastRequestTime, ip)
+			}
+		}
+		m.lastReqMu.Unlock()
+
 		if removed > 0 {
 			log.Printf("Removed %d expired IP bans during routine cleanup", removed)
 			if m.autoSave {
@@ -935,7 +948,12 @@ func (m *IPManager) IsThrottled(ip string) (bool, int) {
 func (m *IPManager) GetIPRuleByIP(ip string) *IPRule {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	return m.lookupRule(ip)
+}
 
+// lookupRule is GetIPRuleByIP without the lock, caller must hold m.mu.
+// RWMutex is not reentrant so nesting RLock deadlocks once a writer waits.
+func (m *IPManager) lookupRule(ip string) *IPRule {
 	// Priority order: whitelist > ban > throttle > challenge > monitor
 	if rule, exists := m.whitelistMap[ip]; exists {
 		return rule
@@ -1039,7 +1057,7 @@ func (m *IPManager) ValidateRequest(ctx *RequestContext) (allowed bool, reason s
 		}
 	}
 
-	rule := m.GetIPRuleByIP(ctx.IP)
+	rule := m.lookupRule(ctx.IP)
 	if rule == nil {
 		return true, ""
 	}
@@ -1104,21 +1122,18 @@ func (m *IPManager) ValidateRequest(ctx *RequestContext) (allowed bool, reason s
 		return false, "protocol_requirement_failed"
 	}
 
-	// Check request interval (must be done with write lock for updating)
+	// Check request interval, own mutex so we don't have to drop the RLock
 	if rule.MinRequestInterval > 0 {
+		m.lastReqMu.Lock()
 		lastTime, exists := m.lastRequestTime[ctx.IP]
-		if exists {
-			interval := ctx.Timestamp.Sub(lastTime)
-			if interval < time.Duration(rule.MinRequestInterval)*time.Millisecond {
-				return false, "request_too_fast"
-			}
+		tooFast := exists && ctx.Timestamp.Sub(lastTime) < time.Duration(rule.MinRequestInterval)*time.Millisecond
+		if !tooFast {
+			m.lastRequestTime[ctx.IP] = ctx.Timestamp
 		}
-		// Update last request time - need to upgrade to write lock
-		m.mu.RUnlock()
-		m.mu.Lock()
-		m.lastRequestTime[ctx.IP] = ctx.Timestamp
-		m.mu.Unlock()
-		m.mu.RLock()
+		m.lastReqMu.Unlock()
+		if tooFast {
+			return false, "request_too_fast"
+		}
 	}
 
 	return true, ""

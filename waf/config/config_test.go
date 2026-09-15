@@ -79,3 +79,37 @@ func TestLoadRejectsBadValues(t *testing.T) {
 		})
 	}
 }
+
+func TestCSRFAndTrustedProxiesConfig(t *testing.T) {
+	cfg, err := Load(filepath.Join(t.TempDir(), "missing.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CSRF.Enabled {
+		t.Error("csrf must be opt-in, the backend has to cooperate")
+	}
+
+	path := filepath.Join(t.TempDir(), "features.json")
+	body := `{"server":{"trusted_proxies":["10.0.0.0/8"]},"csrf":{"enabled":true,"exempt_paths":["/api/hooks"]}}`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.CSRF.Enabled || len(cfg.CSRF.ExemptPaths) != 1 || cfg.CSRF.TokenTTLHours != 1 {
+		t.Errorf("csrf section not loaded: %+v", cfg.CSRF)
+	}
+	if len(cfg.Server.TrustedProxies) != 1 {
+		t.Errorf("trusted_proxies not loaded: %+v", cfg.Server.TrustedProxies)
+	}
+
+	bad := `{"server":{"trusted_proxies":["not-a-cidr"]}}`
+	if err := os.WriteFile(path, []byte(bad), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Error("invalid trusted_proxies cidr should fail validation")
+	}
+}

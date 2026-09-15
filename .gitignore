@@ -12,3 +12,8 @@
 *.exe
 coverage.out
 logs/
+
+# written by tests that auto-init the ip manager from their own cwd
+handlers/config/
+waf/vhost/config/
+waf/config/ip_rules.json

@@ -174,9 +174,13 @@ func (m *Manager) reloadIPRules() error {
 		return fmt.Errorf("invalid JSON in IP rules: %w", err)
 	}
 
-	// Reinitialize IP manager with new rules
+	// InitIPManager is once-only, so after the first call the running
+	// manager has to be told to re-read the file or the edit does nothing
 	if err := ddos.InitIPManager(m.ipRulesPath, true); err != nil {
-		return fmt.Errorf("failed to reinitialize IP manager: %w", err)
+		return fmt.Errorf("failed to initialize IP manager: %w", err)
+	}
+	if err := ddos.GetIPManager().Reload(); err != nil {
+		return fmt.Errorf("failed to reload IP rules: %w", err)
 	}
 
 	return nil

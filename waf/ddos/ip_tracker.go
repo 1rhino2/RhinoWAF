@@ -1,3 +1,4 @@
+// Skidders don't deserve nice things, but we keep the code clean anyway
 package ddos
 
 import (
@@ -21,8 +22,13 @@ type IPTracker struct {
 	lastCleanup int64
 }
 
-// IPEntry stores all the juicy details about an IP
+// IPEntry stores all the juicy details about an IP.
+// mu guards every field below it; the tracker map lock only guards the map.
+// Two requests from one IP land on the same entry concurrently, so without
+// this the request slices get corrupted under load.
 type IPEntry struct {
+	mu sync.Mutex
+
 	Requests       []int64
 	Connections    []int64
 	BlockedUntil   int64
@@ -54,47 +60,51 @@ func init() {
 
 // GetOrCreate returns existing entry or creates new one
 func (t *IPTracker) GetOrCreate(ip string) *IPEntry {
+	now := time.Now().Unix()
+
 	t.mu.RLock()
 	entry, exists := t.entries[ip]
 	t.mu.RUnlock()
 
-	if exists {
-		entry.LastSeen = time.Now().Unix()
-		return entry
-	}
-
-	t.mu.Lock()
-	// Double check after acquiring write lock
-	if entry, exists = t.entries[ip]; exists {
+	if !exists {
+		t.mu.Lock()
+		// Double check after acquiring write lock
+		if entry, exists = t.entries[ip]; !exists {
+			entry = &IPEntry{
+				Requests:     make([]int64, 0, cfg.Layer7Limit),
+				Connections:  make([]int64, 0, cfg.Layer4Limit),
+				FirstSeen:    now,
+				LastSeen:     now,
+				Reputation:   0, // Start neutral
+				ActiveConns:  make(map[string]*ConnectionInfo),
+				LastByteTime: now,
+			}
+			t.entries[ip] = entry
+		}
 		t.mu.Unlock()
-		entry.LastSeen = time.Now().Unix()
-		return entry
 	}
 
-	now := time.Now().Unix()
-	entry = &IPEntry{
-		Requests:         make([]int64, 0, cfg.Layer7Limit),
-		Connections:      make([]int64, 0, cfg.Layer4Limit),
-		FirstSeen:        now,
-		LastSeen:         now,
-		Reputation:       0, // Start neutral
-		ActiveConns:      make(map[string]*ConnectionInfo),
-		SlowConnWarnings: 0,
-		BytesSent:        0,
-		LastByteTime:     now,
-		IsSuspicious:     false,
-		SuspiciousScore:  0,
-	}
-	t.entries[ip] = entry
-	t.mu.Unlock()
-
+	entry.mu.Lock()
+	entry.LastSeen = now
+	entry.mu.Unlock()
 	return entry
+}
+
+// get returns the entry without creating it
+func (t *IPTracker) get(ip string) (*IPEntry, bool) {
+	t.mu.RLock()
+	entry, exists := t.entries[ip]
+	t.mu.RUnlock()
+	return entry, exists
 }
 
 // IsBlocked checks if an IP is currently blocked
 func (t *IPTracker) IsBlocked(ip string) bool {
 	entry := t.GetOrCreate(ip)
 	now := time.Now().Unix()
+
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
 
 	if entry.BlockedUntil > now {
 		return true
@@ -103,6 +113,9 @@ func (t *IPTracker) IsBlocked(ip string) bool {
 	if entry.Reputation <= cfg.ReputationThreshold {
 		entry.BlockedUntil = now + int64(cfg.BlockDurationSec*2)
 		entry.ViolationCount++
+		// lift reputation just above the line so the block actually expires;
+		// used to sit at the threshold and re-block on every request forever
+		entry.Reputation = cfg.ReputationThreshold + 10
 		LogReputationBlock(ip, entry) // Log reputation-based block
 		return true
 	}
@@ -114,14 +127,11 @@ func (t *IPTracker) IsBlocked(ip string) bool {
 func (t *IPTracker) RecordRequest(ip string) {
 	entry := t.GetOrCreate(ip)
 	now := time.Now().Unix()
-	var filtered []int64
-	for _, ts := range entry.Requests {
-		if ts > now-int64(cfg.RateWindowSec) {
-			filtered = append(filtered, ts)
-		}
-	}
-	filtered = append(filtered, now)
-	entry.Requests = filtered
+
+	entry.mu.Lock()
+	entry.Requests = pruneWindow(entry.Requests, now)
+	entry.Requests = append(entry.Requests, now)
+	entry.mu.Unlock()
 }
 
 // RecordConnection logs a new connection for L4 tracking
@@ -129,21 +139,31 @@ func (t *IPTracker) RecordConnection(ip string) {
 	entry := t.GetOrCreate(ip)
 	now := time.Now().Unix()
 
-	var filtered []int64
-	for _, ts := range entry.Connections {
-		if ts > now-int64(cfg.RateWindowSec) {
-			filtered = append(filtered, ts)
-		}
-	}
-	filtered = append(filtered, now)
-	entry.Connections = filtered
+	entry.mu.Lock()
+	entry.Connections = pruneWindow(entry.Connections, now)
+	entry.Connections = append(entry.Connections, now)
+	entry.mu.Unlock()
 }
 
-// CheckRateLimit returns true if IP is within limits
+// pruneWindow drops timestamps outside the rate window, in place
+func pruneWindow(ts []int64, now int64) []int64 {
+	cutoff := now - int64(cfg.RateWindowSec)
+	keep := ts[:0]
+	for _, v := range ts {
+		if v > cutoff {
+			keep = append(keep, v)
+		}
+	}
+	return keep
+}
+
 // CheckRateLimit returns true if IP is within limits
 func (t *IPTracker) CheckRateLimit(ip string, layer7 bool) bool {
 	entry := t.GetOrCreate(ip)
 	now := time.Now().Unix()
+
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
 
 	if layer7 {
 		reqs := len(entry.Requests)
@@ -152,6 +172,8 @@ func (t *IPTracker) CheckRateLimit(ip string, layer7 bool) bool {
 		if reqs > cfg.BurstLimit {
 			entry.BlockedUntil = now + int64(cfg.BlockDurationSec)
 			entry.Reputation -= 10
+			entry.ViolationCount++
+			LogBurstAttack(ip, entry, reqs)
 			return false
 		}
 
@@ -196,6 +218,31 @@ func (t *IPTracker) CheckRateLimit(ip string, layer7 bool) bool {
 	return true
 }
 
+// RequestCount returns how many requests the IP made inside the current window
+func (t *IPTracker) RequestCount(ip string) int {
+	entry := t.GetOrCreate(ip)
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	return len(entry.Requests)
+}
+
+// ConnectionCount returns how many connections the IP opened inside the window
+func (t *IPTracker) ConnectionCount(ip string) int {
+	entry := t.GetOrCreate(ip)
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	return len(entry.Connections)
+}
+
+// markSuspicious flags the entry and returns the request count that did it
+func (t *IPTracker) markSuspicious(ip string) {
+	entry := t.GetOrCreate(ip)
+	entry.mu.Lock()
+	entry.IsSuspicious = true
+	entry.SuspiciousScore++
+	entry.mu.Unlock()
+}
+
 // GetStats returns current tracking stats
 func (t *IPTracker) GetStats() map[string]interface{} {
 	t.mu.RLock()
@@ -206,9 +253,11 @@ func (t *IPTracker) GetStats() map[string]interface{} {
 	now := time.Now().Unix()
 
 	for _, entry := range t.entries {
+		entry.mu.Lock()
 		if entry.BlockedUntil > now {
 			blocked++
 		}
+		entry.mu.Unlock()
 	}
 
 	return map[string]interface{}{
@@ -236,6 +285,7 @@ func (t *IPTracker) cleanup() {
 	maxConnTime := int64(cfg.SlowLorisMaxConnTime)
 
 	for ip, entry := range t.entries {
+		entry.mu.Lock()
 		// Clean up stale active connections (Slowloris)
 		for connID, connInfo := range entry.ActiveConns {
 			if now-connInfo.StartTime > maxConnTime {
@@ -244,7 +294,9 @@ func (t *IPTracker) cleanup() {
 		}
 
 		// Remove IPs that haven't been seen in a while and aren't blocked
-		if entry.LastSeen < now-staleThreshold && entry.BlockedUntil < now && len(entry.ActiveConns) == 0 {
+		stale := entry.LastSeen < now-staleThreshold && entry.BlockedUntil < now && len(entry.ActiveConns) == 0
+		entry.mu.Unlock()
+		if stale {
 			delete(t.entries, ip)
 		}
 	}
@@ -261,15 +313,14 @@ func (t *IPTracker) ResetIP(ip string) {
 
 // GetIPInfo returns detailed info about an IP
 func (t *IPTracker) GetIPInfo(ip string) map[string]interface{} {
-	t.mu.RLock()
-	entry, exists := t.entries[ip]
-	t.mu.RUnlock()
-
+	entry, exists := t.get(ip)
 	if !exists {
 		return map[string]interface{}{"exists": false}
 	}
 
 	now := time.Now().Unix()
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
 	return map[string]interface{}{
 		"exists":             true,
 		"reputation":         entry.Reputation,
@@ -289,6 +340,10 @@ func (t *IPTracker) GetIPInfo(ip string) map[string]interface{} {
 func (t *IPTracker) StartConnection(ip string, connID string) bool {
 	entry := t.GetOrCreate(ip)
 	now := time.Now().Unix()
+
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+
 	if len(entry.ActiveConns) >= cfg.SlowLorisMaxConnsPerIP {
 		entry.BlockedUntil = now + int64(cfg.BlockDurationSec)
 		entry.Reputation -= 8
@@ -298,26 +353,22 @@ func (t *IPTracker) StartConnection(ip string, connID string) bool {
 	}
 
 	entry.ActiveConns[connID] = &ConnectionInfo{
-		StartTime:      now,
-		LastActivity:   now,
-		BytesReceived:  0,
-		HeaderComplete: false,
-		IsSlowLoris:    false,
+		StartTime:    now,
+		LastActivity: now,
 	}
 	return true
 }
 
 // EndConnection marks a connection as finished
 func (t *IPTracker) EndConnection(ip string, connID string) {
-	t.mu.RLock()
-	entry, exists := t.entries[ip]
-	t.mu.RUnlock()
-
+	entry, exists := t.get(ip)
 	if !exists {
 		return
 	}
 
+	entry.mu.Lock()
 	delete(entry.ActiveConns, connID)
+	entry.mu.Unlock()
 }
 
 // CheckSlowConnections detects Slowloris attacks
@@ -326,6 +377,9 @@ func (t *IPTracker) CheckSlowConnections(ip string) bool {
 	now := time.Now().Unix()
 	maxTime := int64(cfg.SlowLorisMaxConnTime)
 	minBytesPerSec := int64(cfg.SlowLorisMinBytesPerSec)
+
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
 
 	staleConns := 0
 	slowConns := 0
@@ -380,24 +434,25 @@ func (t *IPTracker) CleanupStaleConnections() {
 	maxTime := int64(cfg.SlowLorisMaxConnTime)
 
 	for _, entry := range t.entries {
+		entry.mu.Lock()
 		for connID, connInfo := range entry.ActiveConns {
 			if now-connInfo.StartTime > maxTime {
 				delete(entry.ActiveConns, connID)
 			}
 		}
+		entry.mu.Unlock()
 	}
 }
 
 // UpdateConnectionActivity updates bytes received for a connection
 func (t *IPTracker) UpdateConnectionActivity(ip string, connID string, bytes int64) {
-	t.mu.RLock()
-	entry, exists := t.entries[ip]
-	t.mu.RUnlock()
-
+	entry, exists := t.get(ip)
 	if !exists {
 		return
 	}
 
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
 	if connInfo, ok := entry.ActiveConns[connID]; ok {
 		connInfo.LastActivity = time.Now().Unix()
 		connInfo.BytesReceived += bytes
@@ -408,14 +463,13 @@ func (t *IPTracker) UpdateConnectionActivity(ip string, connID string, bytes int
 
 // MarkHeadersComplete marks that HTTP headers have been fully received
 func (t *IPTracker) MarkHeadersComplete(ip string, connID string) {
-	t.mu.RLock()
-	entry, exists := t.entries[ip]
-	t.mu.RUnlock()
-
+	entry, exists := t.get(ip)
 	if !exists {
 		return
 	}
 
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
 	if connInfo, ok := entry.ActiveConns[connID]; ok {
 		connInfo.HeaderComplete = true
 	}

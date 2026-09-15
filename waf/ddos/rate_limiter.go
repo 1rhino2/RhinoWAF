@@ -1,10 +1,9 @@
 package ddos
 
 import (
-	"net"
 	"net/http"
 	"rhinowaf/waf/geo"
-	"strings"
+	"rhinowaf/waf/security"
 )
 
 // AllowL7 checks if an IP can make HTTP requests
@@ -23,7 +22,10 @@ func AllowL7(ip string) bool {
 
 	// Manually banned IPs are blocked immediately
 	if ipMgr.IsBanned(ip) {
-		LogReputationBlock(ip, tracker.GetOrCreate(ip))
+		entry := tracker.GetOrCreate(ip)
+		entry.mu.Lock()
+		LogReputationBlock(ip, entry)
+		entry.mu.Unlock()
 		return false
 	}
 
@@ -37,9 +39,8 @@ func AllowL7(ip string) bool {
 
 	// Check if IP is throttled
 	if throttled, percent := ipMgr.IsThrottled(ip); throttled {
-		entry := tracker.GetOrCreate(ip)
 		adjustedLimit := (cfg.Layer7Limit * (100 - percent)) / 100
-		if len(entry.Requests) > adjustedLimit*cfg.RateWindowSec {
+		if tracker.RequestCount(ip) > adjustedLimit*cfg.RateWindowSec {
 			return false
 		}
 	}
@@ -61,16 +62,14 @@ func AllowL7(ip string) bool {
 	tracker.RecordRequest(ip)
 
 	// Apply adaptive throttling if under attack
-	entry := tracker.GetOrCreate(ip)
 	throttle := globalTracker.GetThrottleMultiplier()
 	adjustedLimit := int(float64(cfg.Layer7Limit) * throttle)
 
 	// Check if IP is hitting limits suspiciously fast
-	reqs := len(entry.Requests)
+	reqs := tracker.RequestCount(ip)
 	if reqs > cfg.SuspiciousIPThreshold {
 		globalTracker.MarkSuspicious(ip)
-		entry.IsSuspicious = true
-		entry.SuspiciousScore++
+		tracker.markSuspicious(ip)
 	}
 
 	// Use adjusted limit during attacks
@@ -95,13 +94,11 @@ func AllowL4(ip string) bool {
 	tracker.RecordConnection(ip)
 
 	// Adaptive throttling affects L4 limits too
-	entry := tracker.GetOrCreate(ip)
 	throttle := globalTracker.GetThrottleMultiplier()
 
 	if throttle < 1.0 {
 		adjustedLimit := int(float64(cfg.Layer4Limit) * throttle)
-		conns := len(entry.Connections)
-		if conns > adjustedLimit*cfg.RateWindowSec {
+		if tracker.ConnectionCount(ip) > adjustedLimit*cfg.RateWindowSec {
 			return false
 		}
 	}
@@ -109,41 +106,12 @@ func AllowL4(ip string) bool {
 	return tracker.CheckRateLimit(ip, false)
 }
 
-// GetIP extracts the real client IP from a request
-// Handles proxies, load balancers, and direct connections
+// GetIP extracts the real client IP from a request. X-Forwarded-For and
+// friends are only honored when the connection comes from a trusted proxy
+// (see security.SetTrustedProxies), otherwise anyone could spoof their way
+// past bans and rate limits with one header.
 func GetIP(r *http.Request) string {
-	// Check X-Forwarded-For first (most common proxy header)
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		parts := strings.Split(xff, ",")
-		if len(parts) > 0 {
-			ip := strings.TrimSpace(parts[0])
-			if ip != "" {
-				return ip
-			}
-		}
-	}
-
-	// Check X-Real-IP (nginx and others)
-	realIP := r.Header.Get("X-Real-IP")
-	if realIP != "" {
-		return strings.TrimSpace(realIP)
-	}
-
-	// Check CF-Connecting-IP (Cloudflare)
-	cfIP := r.Header.Get("CF-Connecting-IP")
-	if cfIP != "" {
-		return strings.TrimSpace(cfIP)
-	}
-
-	// Fallback to RemoteAddr
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		// If split fails, just return the whole thing
-		return r.RemoteAddr
-	}
-
-	return ip
+	return security.GetRealIP(r)
 }
 
 // GetTracker returns the global IP tracker (for monitoring/admin)

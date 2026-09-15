@@ -63,8 +63,15 @@ func GetRealIP(r *http.Request) string {
 	}
 
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		if parsed := net.ParseIP(xri); parsed != nil {
-			return xri
+		if parsed := net.ParseIP(strings.TrimSpace(xri)); parsed != nil {
+			return parsed.String()
+		}
+	}
+
+	// cloudflare puts the real client here
+	if cf := r.Header.Get("CF-Connecting-IP"); cf != "" {
+		if parsed := net.ParseIP(strings.TrimSpace(cf)); parsed != nil {
+			return parsed.String()
 		}
 	}
 

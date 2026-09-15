@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"net/http"
+	"rhinowaf/waf/security"
 	"sync"
 	"time"
 )
@@ -143,8 +144,8 @@ func (m *Manager) getSessionID(r *http.Request) string {
 	if cookie, err := r.Cookie("session_id"); err == nil {
 		return cookie.Value
 	}
-	// fall back to IP if no session cookie
-	return r.RemoteAddr
+	// fall back to client IP if no session cookie
+	return security.GetRealIP(r)
 }
 
 func (m *Manager) Protect(next http.Handler) http.Handler {

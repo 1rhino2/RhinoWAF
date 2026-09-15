@@ -8,10 +8,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 )
+
+// verifyClient talks to hcaptcha/turnstile; http.Post has no timeout and a
+// slow captcha backend would pin request goroutines forever
+var verifyClient = &http.Client{Timeout: 10 * time.Second}
 
 type ChallengeType string
 
@@ -169,12 +174,11 @@ func (m *Manager) VerifyHCaptcha(response, remoteIP string) (bool, error) {
 		return false, fmt.Errorf("hCaptcha verification is not configured on this server")
 	}
 
-	payload := fmt.Sprintf("response=%s&secret=%s&remoteip=%s", response, m.hcaptchaSecret, remoteIP)
-	resp, err := http.Post(
-		"https://hcaptcha.com/siteverify",
-		"application/x-www-form-urlencoded",
-		strings.NewReader(payload),
-	)
+	form := url.Values{}
+	form.Set("response", response)
+	form.Set("secret", m.hcaptchaSecret)
+	form.Set("remoteip", remoteIP)
+	resp, err := verifyClient.PostForm("https://hcaptcha.com/siteverify", form)
 	if err != nil {
 		return false, err
 	}
@@ -195,11 +199,19 @@ func (m *Manager) VerifyTurnstile(response, remoteIP string) (bool, error) {
 		return false, fmt.Errorf("cloudflare turnstile is not configured on this server")
 	}
 
-	payload := fmt.Sprintf(`{"response":"%s","secret":"%s","remoteip":"%s"}`, response, m.turnstileSecret, remoteIP)
-	resp, err := http.Post(
+	// json.Marshal so a quote in the response can't break out of the payload
+	payload, err := json.Marshal(map[string]string{
+		"response": response,
+		"secret":   m.turnstileSecret,
+		"remoteip": remoteIP,
+	})
+	if err != nil {
+		return false, err
+	}
+	resp, err := verifyClient.Post(
 		"https://challenges.cloudflare.com/turnstile/v0/siteverify",
 		"application/json",
-		strings.NewReader(payload),
+		strings.NewReader(string(payload)),
 	)
 	if err != nil {
 		return false, err

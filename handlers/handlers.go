@@ -6,8 +6,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"rhinowaf/waf"
-	"rhinowaf/waf/ddos"
-	"rhinowaf/waf/websocket"
 	"time"
 )
 
@@ -16,25 +14,8 @@ const defaultBackendURL = "http://localhost:9000"
 
 // ReverseProxy handles proxying requests to the backend
 var proxy *httputil.ReverseProxy
-var wsHandler *websocket.Handler
 
 func init() {
-	// Initialize WebSocket security handler
-	wsHandler = websocket.NewHandler(websocket.Config{
-		Enabled:              true,
-		MaxConnectionsPerIP:  10,
-		ConnectionRateLimit:  5,
-		ConnectionRateWindow: time.Minute,
-		MaxMessageSize:       1024 * 1024,
-		MessageRateLimit:     100,
-		MessageRateWindow:    time.Minute,
-		AllowOriginWildcard:  true,
-		BlockBinaryMessages:  false,
-		MaxViolations:        5,
-		ViolationBanDuration: 30 * time.Minute,
-		IdleTimeout:          5 * time.Minute,
-		HandshakeTimeout:     10 * time.Second,
-	})
 	buildProxy(defaultBackendURL, 100)
 }
 
@@ -57,11 +38,13 @@ func buildProxy(backendURL string, maxIdleConns int) {
 
 	// custom transport with connection pooling
 	transport := &http.Transport{
-		MaxIdleConns:        maxIdleConns,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-		DisableKeepAlives:   false,
-		DisableCompression:  false,
+		MaxIdleConns:          maxIdleConns,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		DisableKeepAlives:     false,
+		DisableCompression:    false,
+		ResponseHeaderTimeout: 30 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 
 	proxy = httputil.NewSingleHostReverseProxy(target)
@@ -74,15 +57,9 @@ func buildProxy(backendURL string, maxIdleConns int) {
 	}
 }
 
-// ProxyToBackend forwards requests to the backend application
+// ProxyToBackend forwards requests to the backend application. WebSocket
+// upgrade checks already ran in waf.ProtectRequest.
 func ProxyToBackend(w http.ResponseWriter, r *http.Request) {
-	// Check WebSocket upgrade attempts
-	ip := ddos.GetIP(r)
-	if allowed, reason := wsHandler.ValidateUpgrade(r, ip); !allowed {
-		http.Error(w, reason, http.StatusForbidden)
-		return
-	}
-
 	// Add headers to indicate the request passed through WAF
 	r.Header.Set("X-Protected-By", waf.Name+"-"+waf.Version)
 	r.Header.Set("X-WAF-Status", "PASSED")
@@ -95,6 +72,8 @@ func Home(w http.ResponseWriter, r *http.Request) {
 	ProxyToBackend(w, r)
 }
 
+// Login and Echo are demo handlers kept for the benchmarks. They are not
+// routed anymore: a real app's /login must reach the backend.
 func Login(w http.ResponseWriter, r *http.Request) {
 	user := r.FormValue("user")
 	_ = r.FormValue("pass") // Using pass variable to avoid unused warning

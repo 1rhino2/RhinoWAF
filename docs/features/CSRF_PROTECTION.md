@@ -11,22 +11,20 @@ CSRF attacks trick users into performing unwanted actions on a web application w
 
 ## Configuration
 
-CSRF protection is configured in `config/features.json`:
+CSRF protection is configured in `config/features.json`. It is **off by
+default**: the WAF cannot know whether your frontend echoes the token back, and
+with it on blind every non-exempt POST is a 403. Turn it on once your app
+fetches `/csrf/token` and sends the value as the `X-CSRF-Token` header or a
+`csrf_token` form field.
 
 ```json
 {
   "csrf": {
-    "enabled": true,
-    "token_length": 32,
-    "token_ttl_seconds": 3600,
-    "cookie_name": "csrf_token",
-    "header_name": "X-CSRF-Token",
-    "form_field_name": "csrf_token",
+    "enabled": false,
+    "double_submit": false,
     "secure_cookie": false,
-    "same_site": "Lax",
-    "exempt_methods": ["GET", "HEAD", "OPTIONS", "TRACE"],
-    "exempt_paths": ["/health", "/metrics", "/challenge/", "/fingerprint/", "/csrf/token"],
-    "double_submit": false
+    "token_ttl_hours": 1,
+    "exempt_paths": ["/health", "/metrics", "/api/webhooks"]
   }
 }
 ```
@@ -35,18 +33,16 @@ CSRF protection is configured in `config/features.json`:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enabled` | bool | `true` | Enable/disable CSRF protection |
-| `token_length` | int | `32` | Length of generated tokens in bytes |
-| `token_ttl_seconds` | int | `3600` | Token lifetime in seconds |
-| `cookie_name` | string | `"csrf_token"` | Name of CSRF cookie |
-| `header_name` | string | `"X-CSRF-Token"` | HTTP header for token |
-| `form_field_name` | string | `"csrf_token"` | Form field name for token |
+| `enabled` | bool | `false` | Enable/disable CSRF protection |
+| `double_submit` | bool | `false` | Use the stateless double-submit cookie pattern instead of server-side tokens |
 | `secure_cookie` | bool | `false` | Set cookie Secure flag (HTTPS only) |
-| `same_site` | string | `"Lax"` | SameSite cookie attribute |
-| `exempt_methods` | []string | `["GET", "HEAD", "OPTIONS", "TRACE"]` | HTTP methods exempt from CSRF checks |
-| `exempt_paths` | []string | Various | Paths exempt from CSRF checks |
-| `double_submit` | bool | `false` | Use stateless double-submit pattern |
+| `token_ttl_hours` | int | `1` | Token lifetime in hours |
+| `exempt_paths` | []string | see example | Paths that skip validation. Exact match, or prefix when the entry ends with `/`. `/challenge/`, `/fingerprint/` and `/csrf/token` are always exempt |
 
+Cookie name (`csrf_token`), header name (`X-CSRF-Token`), form field
+(`csrf_token`), token length (32 bytes) and the exempt methods (GET, HEAD,
+OPTIONS, TRACE) are fixed.
+| `exempt_methods` | []string | `["GET", "HEAD", "OPTIONS", "TRACE"]` | HTTP methods exempt from CSRF checks |
 ## Usage
 
 ### Getting a CSRF Token

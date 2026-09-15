@@ -262,8 +262,11 @@ func (t *Tracker) Track(ip string, fp *Fingerprint) error {
 		t.fingerprints[fp.Hash] = fp
 	}
 
-	// track IP to fingerprint mapping
-	t.ipToHash[ip] = append(t.ipToHash[ip], fp.Hash)
+	// track IP to fingerprint mapping, once per hash or this grows by one
+	// entry per request forever
+	if !contains(t.ipToHash[ip], fp.Hash) {
+		t.ipToHash[ip] = append(t.ipToHash[ip], fp.Hash)
+	}
 
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 )
 
@@ -24,6 +25,7 @@ type Config struct {
 	Challenge   ChallengeConfig   `json:"challenge_system"`
 	Fingerprint FingerprintConfig `json:"fingerprinting"`
 	WebSocket   WebSocketConfig   `json:"websocket"`
+	CSRF        CSRFConfig        `json:"csrf"`
 	Logging     LoggingConfig     `json:"logging"`
 }
 
@@ -36,6 +38,10 @@ type ServerConfig struct {
 	WriteTimeoutSeconds      int `json:"write_timeout_seconds"`
 	IdleTimeoutSeconds       int `json:"idle_timeout_seconds"`
 	MaxHeaderBytes           int `json:"max_header_bytes"`
+	// CIDRs whose X-Forwarded-For / X-Real-IP / CF-Connecting-IP we believe.
+	// Empty means loopback + RFC1918 + fc00::/7, which covers a proxy on the
+	// same box or LAN. Set it to your CDN ranges if the WAF is behind one.
+	TrustedProxies []string `json:"trusted_proxies"`
 }
 
 type BackendConfig struct {
@@ -79,6 +85,17 @@ type WebSocketConfig struct {
 	HandshakeTimeoutSeconds     int      `json:"handshake_timeout_seconds"`
 }
 
+// CSRFConfig is off by default: the backend has to fetch /csrf/token and
+// echo it back in a header or form field, so turning it on blind 403s every
+// POST your app makes.
+type CSRFConfig struct {
+	Enabled       bool     `json:"enabled"`
+	DoubleSubmit  bool     `json:"double_submit"`
+	SecureCookie  bool     `json:"secure_cookie"`
+	TokenTTLHours int      `json:"token_ttl_hours"`
+	ExemptPaths   []string `json:"exempt_paths"`
+}
+
 type LoggingConfig struct {
 	Enabled    bool `json:"enabled"`
 	MaxSizeMB  int  `json:"max_size_mb"`
@@ -92,7 +109,7 @@ type LoggingConfig struct {
 // like older builds.
 func Default() *Config {
 	return &Config{
-		Version: "1.0.5",
+		Version: "1.0.6",
 		Server: ServerConfig{
 			Listen:                   ":8080",
 			ReadHeaderTimeoutSeconds: 10,
@@ -137,6 +154,13 @@ func Default() *Config {
 			ViolationBanDurationMinutes: 30,
 			IdleTimeoutMinutes:          5,
 			HandshakeTimeoutSeconds:     10,
+		},
+		CSRF: CSRFConfig{
+			Enabled:       false,
+			DoubleSubmit:  false,
+			SecureCookie:  false,
+			TokenTTLHours: 1,
+			ExemptPaths:   []string{"/health", "/metrics", "/challenge/", "/fingerprint/", "/csrf/token", "/api/webhooks"},
 		},
 		Logging: LoggingConfig{
 			Enabled:    true,
@@ -199,6 +223,14 @@ func (c *Config) validate() error {
 	}
 	if c.WebSocket.MaxMessageSize < 0 {
 		return fmt.Errorf("websocket.max_message_size must be >= 0")
+	}
+	for _, cidr := range c.Server.TrustedProxies {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("server.trusted_proxies entry %q is not a CIDR", cidr)
+		}
+	}
+	if c.CSRF.TokenTTLHours < 0 {
+		return fmt.Errorf("csrf.token_ttl_hours must be >= 0")
 	}
 	return nil
 }

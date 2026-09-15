@@ -26,6 +26,7 @@ import (
 	"rhinowaf/waf/reload"
 	"rhinowaf/waf/reputation"
 	"rhinowaf/waf/requestid"
+	"rhinowaf/waf/security"
 	"rhinowaf/waf/templates"
 	"rhinowaf/waf/vhost"
 	"rhinowaf/waf/webhook"
@@ -87,6 +88,14 @@ func main() {
 	backendURL := envOr(*backendFlag, "RHINOWAF_BACKEND", cfg.Backend.ProxyURL)
 
 	templates.BrandVersion = Version
+
+	// which upstream proxies may set X-Forwarded-For; empty keeps the
+	// loopback/private default
+	if len(cfg.Server.TrustedProxies) > 0 {
+		if err := security.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+			log.Fatalf("config error: trusted_proxies: %v", err)
+		}
+	}
 
 	logWriter := logging.SetupRotation(logging.Config{
 		Enabled:    cfg.Logging.Enabled,
@@ -266,25 +275,23 @@ func main() {
 		IdleTimeout:          time.Duration(cfg.WebSocket.IdleTimeoutMinutes) * time.Minute,
 		HandshakeTimeout:     time.Duration(cfg.WebSocket.HandshakeTimeoutSeconds) * time.Second,
 	})
+	waf.SetWebSocketHandler(websocketHandler)
 
-	// CSRF protection
+	// CSRF protection, opt-in via features.json since the backend has to
+	// cooperate (fetch /csrf/token, send it back)
 	csrfManager := csrf.NewManager(csrf.Config{
-		Enabled:       true,
+		Enabled:       cfg.CSRF.Enabled,
 		TokenLength:   32,
-		TokenTTL:      1 * time.Hour,
+		TokenTTL:      time.Duration(cfg.CSRF.TokenTTLHours) * time.Hour,
 		CookieName:    "csrf_token",
 		HeaderName:    "X-CSRF-Token",
 		FormFieldName: "csrf_token",
-		SecureCookie:  false, // flip to true when you add HTTPS
+		SecureCookie:  cfg.CSRF.SecureCookie,
 		SameSite:      http.SameSiteLaxMode,
 		ExemptMethods: []string{"GET", "HEAD", "OPTIONS", "TRACE"},
-		ExemptPaths: []string{
-			"/health", "/metrics", "/challenge/", "/fingerprint/", "/csrf/token",
-			"/api/webhooks", "/api/users", "/api/products", "/api/orders",
-			"/api/data", "/api/v1/search",
-			"/cart/", "/graphql",
-		},
-		DoubleSubmit: false,
+		// the WAF's own endpoints must never be gated, whatever the user lists
+		ExemptPaths:  append(cfg.CSRF.ExemptPaths, "/challenge/", "/fingerprint/", "/csrf/token"),
+		DoubleSubmit: cfg.CSRF.DoubleSubmit,
 		ErrorMessage: "CSRF validation failed",
 	})
 	csrfMW := csrf.NewMiddleware(csrfManager)
@@ -302,9 +309,9 @@ func main() {
 		SessionTimeout: 3600,
 	})
 
-	// HTTP/3 server setup
+	// HTTP/3 server setup, HTTP3_ENABLED=true plus cert/key env turns it on
 	http3Server := http3.NewServer(http3.Config{
-		Enabled:      false, // disabled by default
+		Enabled:      os.Getenv("HTTP3_ENABLED") == "true",
 		Port:         ":443",
 		CertFile:     os.Getenv("HTTP3_CERT_FILE"),
 		KeyFile:      os.Getenv("HTTP3_KEY_FILE"),
@@ -352,6 +359,12 @@ func main() {
 			})
 			return
 		}
+		// SIGHUP reloaded vhosts too, the HTTP path forgot to
+		if vhostMgr != nil {
+			if err := vhostMgr.Reload(backendsPath); err != nil {
+				log.Printf("VHost reload failed: %v", err)
+			}
+		}
 		status := reloadMgr.GetStatus()
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -359,9 +372,12 @@ func main() {
 			"config": status,
 		})
 	})))
-	mux.Handle("/fingerprint/collect", importLocalhost(http.HandlerFunc(fingerprintMW.CollectHandler)))
+	// browsers POST here from the verification page, so it has to be public.
+	// it is rate limited per IP inside CollectHandler.
+	mux.HandleFunc("/fingerprint/collect", fingerprintMW.CollectHandler)
 	mux.Handle("/fingerprint/stats", importLocalhost(http.HandlerFunc(fingerprintMW.StatsHandler)))
-	mux.Handle("/csrf/token", importLocalhost(http.HandlerFunc(csrfMW.TokenHandler)))
+	// same story, the frontend fetches its token from here
+	mux.HandleFunc("/csrf/token", csrfMW.TokenHandler)
 	mux.Handle("/websocket/stats", importLocalhost(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		stats := websocketHandler.GetStats()
 		w.Header().Set("Content-Type", "application/json")
@@ -386,12 +402,9 @@ func main() {
 			vhostMgr.ServeHTTP(w, r)
 		})
 	} else {
+		// everything goes to the backend. /login and /echo used to hit demo
+		// handlers here, which hijacked those paths on real apps.
 		mux.HandleFunc("/", waf.AdaptiveProtect(handlers.Home))
-		mux.HandleFunc("/api/", waf.AdaptiveProtect(handlers.APIHandler))
-		mux.HandleFunc("/about", waf.AdaptiveProtect(handlers.AboutHandler))
-		mux.HandleFunc("/contact", waf.AdaptiveProtect(handlers.ContactHandler))
-		mux.HandleFunc("/login", waf.AdaptiveProtect(handlers.Login))
-		mux.HandleFunc("/echo", waf.AdaptiveProtect(handlers.Echo))
 		mux.Handle("/flood", importLocalhost(http.HandlerFunc(handlers.Flood)))
 	}
 

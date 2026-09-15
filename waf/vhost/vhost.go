@@ -11,6 +11,7 @@ import (
 	"rhinowaf/waf"
 	"strings"
 	"sync"
+	"time"
 )
 
 type BackendConfig struct {
@@ -73,6 +74,7 @@ func (m *VHostManager) initProxies() error {
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
+		proxy.Transport = newTransport()
 
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("Backend error for %s -> %s: %v", backend.Domain, backend.Backend, err)
@@ -89,6 +91,7 @@ func (m *VHostManager) initProxies() error {
 			return fmt.Errorf("invalid default backend URL: %w", err)
 		}
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
+		proxy.Transport = newTransport()
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("Default backend error: %v", err)
 			http.Error(w, "Backend unavailable", http.StatusBadGateway)
@@ -98,6 +101,18 @@ func (m *VHostManager) initProxies() error {
 	}
 
 	return nil
+}
+
+// newTransport: pooled, with a header timeout so a hung backend can't hold
+// WAF goroutines open indefinitely
+func newTransport() *http.Transport {
+	return &http.Transport{
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
 }
 
 func (m *VHostManager) GetProxy(host string) *httputil.ReverseProxy {
@@ -151,11 +166,13 @@ func (m *VHostManager) Reload(configPath string) error {
 	defer m.mu.Unlock()
 
 	oldProxies := m.proxies
+	oldConfig := m.config
 	m.proxies = make(map[string]*httputil.ReverseProxy)
 	m.config = &newConfig
 
 	if err := m.initProxies(); err != nil {
 		m.proxies = oldProxies
+		m.config = oldConfig
 		return fmt.Errorf("failed to reinitialize proxies: %w", err)
 	}
 

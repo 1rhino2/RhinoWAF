@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"rhinowaf/waf/security"
 	"strings"
 )
 
@@ -176,18 +177,7 @@ func (m *Middleware) requiresChallenge(path string) bool {
 }
 
 func (m *Middleware) getIP(r *http.Request) string {
-	forwarded := r.Header.Get("X-Forwarded-For")
-	if forwarded != "" {
-		parts := strings.Split(forwarded, ",")
-		return strings.TrimSpace(parts[0])
-	}
-
-	realIP := r.Header.Get("X-Real-IP")
-	if realIP != "" {
-		return realIP
-	}
-
-	return strings.Split(r.RemoteAddr, ":")[0]
+	return security.GetRealIP(r)
 }
 
 func (m *Middleware) getTokenFromCookie(r *http.Request) string {

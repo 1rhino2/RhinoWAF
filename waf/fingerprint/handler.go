@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"rhinowaf/waf/security"
 	"strings"
 	"time"
 )
@@ -38,20 +39,24 @@ func (m *Middleware) Handler(next http.Handler) http.Handler {
 		// Extract server-side fingerprint
 		fp := m.tracker.ExtractFromRequest(r)
 
-		// Check if we have client-side data in cookie
-		if cookie, err := r.Cookie("waf_fingerprint"); err == nil && cookie.Value != "" {
-			// Already have fingerprint, validate it
-			fp.Hash = cookie.Value
-			allowed, reason := m.tracker.Check(ip, fp)
-			if !allowed {
-				http.Error(w, fmt.Sprintf("Access blocked: %s", reason), http.StatusForbidden)
+		// Check if we have client-side data in cookie. The value is only
+		// accepted when it names a fingerprint we already hold, otherwise a
+		// client could invent one per request and fill the map.
+		if cookie, err := r.Cookie("waf_fingerprint"); err == nil && isHashLike(cookie.Value) {
+			if _, known := m.tracker.GetFingerprint(cookie.Value); known {
+				fp.Hash = cookie.Value
+				allowed, reason := m.tracker.Check(ip, fp)
+				if !allowed {
+					http.Error(w, fmt.Sprintf("Access blocked: %s", reason), http.StatusForbidden)
+					return
+				}
+
+				// Track this visit
+				_ = m.tracker.Track(ip, fp)
+				next.ServeHTTP(w, r)
 				return
 			}
-
-			// Track this visit
-			_ = m.tracker.Track(ip, fp)
-			next.ServeHTTP(w, r)
-			return
+			// stale (restart, expiry) or forged: fall through and re-collect
 		}
 
 		// No fingerprint cookie - inject collection script
@@ -332,20 +337,21 @@ func (m *Middleware) StatsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		ips := strings.Split(xff, ",")
-		return strings.TrimSpace(ips[0])
-	}
+	return security.GetRealIP(r)
+}
 
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
+// isHashLike: 64 lowercase hex chars, what generateHash produces
+func isHashLike(s string) bool {
+	if len(s) != 64 {
+		return false
 	}
-
-	ip := r.RemoteAddr
-	if idx := strings.LastIndex(ip, ":"); idx != -1 {
-		ip = ip[:idx]
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
 	}
-	return ip
+	return true
 }
 
 func acceptsHTML(r *http.Request) bool {

@@ -58,7 +58,7 @@ Check the version:
 
 ```bash
 ./rhinowaf -version
-# RhinoWAF 1.0.5 (built ...)
+# RhinoWAF 1.0.6 (built ...)
 ```
 
 You can also grab a prebuilt binary from the
@@ -71,7 +71,7 @@ the common knobs, the files and flags below cover it.
 
 | File | Controls |
 |------|----------|
-| `config/features.json` | App middleware: listen address, backend, challenge, fingerprinting, websocket, server timeouts, logging |
+| `config/features.json` | App middleware: listen address, backend, trusted proxies, challenge, fingerprinting, websocket, CSRF, server timeouts, logging |
 | `config/ip_rules.json` | Per-IP rules, geo rules, global rate limits, proxy/Tor/hosting blocking |
 | `config/geoip.json` | CIDR to country mapping for geo rules |
 | `config/backends.json` | Multi-vhost routing (one instance, many domains to many backends) |
@@ -92,6 +92,18 @@ dropping protection. Example:
 ```
 
 See `config/features.example.json` for the full annotated set of fields.
+
+Two fields worth knowing about:
+
+- `server.trusted_proxies`: CIDRs whose `X-Forwarded-For`, `X-Real-IP` and
+  `CF-Connecting-IP` headers are believed. Empty means loopback plus private
+  ranges, which covers nginx or Traefik on the same box. If the WAF is the
+  public edge, leave it empty and forwarded headers from the internet are
+  ignored, so nobody can spoof their way past a ban with one header. Behind
+  Cloudflare, put the CF ranges here.
+- `csrf.enabled`: off by default. Turn it on only when your frontend fetches
+  `/csrf/token` and sends it back as `X-CSRF-Token` or a `csrf_token` form
+  field, otherwise every non-exempt POST gets a 403.
 
 `ip_rules.json` and `geoip.json` hot-reload while the WAF is running, so IP bans,
 geo rules, and rate limits take effect without a restart (see Hot-reload below).
@@ -186,6 +198,8 @@ threshold (4 by default). Metrics land in Prometheus. See
 ## Observability
 
 Health, metrics, and reload endpoints are restricted to localhost.
+`/fingerprint/collect`, `/csrf/token` and `/challenge/verify` are public, the
+browser has to reach them.
 
 ```bash
 curl http://localhost:8080/health        # status, uptime, memory, version
@@ -206,8 +220,8 @@ jq -r '.severity' logs/ddos.log | sort | uniq -c
 
 ## Hot-reload
 
-`ip_rules.json` and `geoip.json` are watched for changes and reloaded after a
-short debounce, no restart needed. You can also reload on demand:
+`ip_rules.json`, `geoip.json` and `backends.json` are watched or reloaded on
+demand (backends only via `/reload` or SIGHUP), no restart needed:
 
 ```bash
 curl -X POST http://localhost:8080/reload   # HTTP (localhost)

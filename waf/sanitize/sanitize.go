@@ -1,7 +1,10 @@
 package sanitize
 
 import (
+	"bytes"
 	"html"
+	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -27,75 +30,87 @@ var (
 	// header injection detection
 	crlfRegex        = regexp.MustCompile(`[\r\n]`)
 	headerSplitRegex = regexp.MustCompile(`[\r\n]\s*[a-zA-Z-]+\s*:`)
+
+	// ValidateHeaders helpers, compiled once instead of per request
+	contentLengthRegex = regexp.MustCompile(`^\d+$`)
+	headerNameRegex    = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$|^[a-zA-Z]$`)
+
+	// word-bounded so "alternative" / "executive" / "grants" stop matching
+	sqlKeywordWordRegex = regexp.MustCompile(`\b(select|union|insert|update|delete|drop|create|alter|exec|execute|grant|truncate)\b`)
+	boolOpRegex         = regexp.MustCompile(`\b(or|and)\b`)
+	// "or 1.5=2" style tautologies, not any sentence with a dot and an "or"
+	numCompareRegex = regexp.MustCompile(`\b(or|and)\s+[\d.]+\s*(=|<|>|<=|>=|<>|!=)\s*[\d.]+`)
+	// between with numeric/quoted operands, "difference between cats and dogs" is fine
+	betweenRegex = regexp.MustCompile(`\bbetween\s+['\d]\S*\s+and\s+['\d]`)
+	// 0x hex literal on its own, "zoom 2.0x" is not one
+	hexLiteralRegex = regexp.MustCompile(`(^|[^a-z0-9.])0x[0-9a-f]{2,}`)
+	// exec of a stored proc, "exec summary" is a search term
+	execProcRegex = regexp.MustCompile(`\bexec(ute)?\s+(sp_|xp_|master|@)`)
+	// shell metachar followed by a real command word
+	shellCmdRegex = regexp.MustCompile(`(;|\||&&|\$\(|` + "`" + `)\s*(cat|ls|id|whoami|uname|nc|wget|curl|bash|sh|rm|chmod)(\s|$|;|\||` + "`" + `|\))`)
+	// ${...} only when it looks like an expression or a known EL/SSTI object,
+	// not a literal ${placeholder} left in a tracking link
+	exprTemplateRegex = regexp.MustCompile(`\$\{[^}]*[#(*=.\[][^}]*\}|\$\{\s*(applicationscope|sessionscope|requestscope|pagecontext|param|paramvalues|header|headervalues|cookie|initparam|class|self|config|request|t\()`)
+	// UTF-7 run encoding an ASCII char: "+A" then A-H then a 4-multiple base64
+	// digit then "A". Case sensitive on purpose, "+advice" is a plus-space.
+	utf7Regex = regexp.MustCompile(`\+A[A-H][AEIMQUYcgkosw048]A`)
+	// real scientific notation (1e3, 2e+5), "like+cats" is not, and neither
+	// is the "3e10" inside a percent-encoded "%3E10"
+	sciNotationRegex = regexp.MustCompile(`(^|[^%0-9])[0-9]+\s*e\s*[+-]?\s*[0-9]`)
+	// encoded tag opener, a lone %3E is just a ">" in a search box
+	encodedTagRegex = regexp.MustCompile(`%3c(%2f)?(script|img|svg|iframe|body|object|embed|a\b|div|style|link|meta|form|input|video|audio|marquee|math|table|details)`)
+	// media decoy in front of an executable extension, shell.jpg.php
+	decoyExtRegex = regexp.MustCompile(`\.(jpe?g|png|gif|bmp|webp|svg|pdf|txt|zip|mp4|mp3)\.(php[0-9]?|phtml|phar|aspx?|jspx?|exe|sh|cgi|pl|py|rb)\b`)
 )
 
-// All sanitizes ALL input vectors in an HTTP request
+// maxFormSnapshot caps how much of a urlencoded body we buffer for inspection
+const maxFormSnapshot = 1 << 20
+
+// All normalizes the request in place before it is proxied. It only strips
+// null bytes and control characters from the path and query; the request
+// is not html-escaped or keyword-stripped anymore. Doing that rewrote real
+// paths like /update-profile into /-profile and mangled tokens in headers,
+// and the body was drained by ParseForm so every form POST hit the backend
+// empty. IsMalicious is the gate, this is just cleanup.
 func All(r *http.Request) {
-	q := r.URL.Query()
-	for k, vals := range q {
-		for i, v := range vals {
-			q[k][i] = Clean(v)
-		}
+	if p := stripControl(r.URL.Path); p != r.URL.Path {
+		r.URL.Path = p
+		r.URL.RawPath = ""
 	}
-	r.URL.RawQuery = q.Encode()
 
-	r.URL.Path = Clean(r.URL.Path)
-
-	if r.Method == "POST" || r.Method == "PUT" || r.Method == "PATCH" {
-		_ = r.ParseForm()
-		for k, vals := range r.Form {
+	// only re-encode when something changed, re-encoding reorders params and
+	// breaks signed URLs
+	if r.URL.RawQuery != "" {
+		q := r.URL.Query()
+		changed := false
+		for k, vals := range q {
 			for i, v := range vals {
-				r.Form[k][i] = Clean(v)
+				if c := stripControl(v); c != v {
+					q[k][i] = c
+					changed = true
+				}
 			}
 		}
-		for k, vals := range r.PostForm {
-			for i, v := range vals {
-				r.PostForm[k][i] = Clean(v)
-			}
+		if changed {
+			r.URL.RawQuery = q.Encode()
 		}
-	}
-
-	if r.MultipartForm != nil {
-		for k, vals := range r.MultipartForm.Value {
-			for i, v := range vals {
-				r.MultipartForm.Value[k][i] = Clean(v)
-			}
-		}
-		for k, files := range r.MultipartForm.File {
-			for i, fh := range files {
-				r.MultipartForm.File[k][i].Filename = Clean(fh.Filename)
-			}
-		}
-	}
-
-	criticalHeaders := map[string]bool{
-		"Content-Type":      true,
-		"Content-Length":    true,
-		"Host":              true,
-		"Connection":        true,
-		"Transfer-Encoding": true,
-	}
-	for k, vals := range r.Header {
-		if criticalHeaders[k] {
-			continue
-		}
-		for i, v := range vals {
-			r.Header[k][i] = Clean(v)
-		}
-	}
-
-	for _, c := range r.Cookies() {
-		c.Value = Clean(c.Value)
-		c.Name = Clean(c.Name)
-	}
-
-	r.URL.Fragment = Clean(r.URL.Fragment)
-
-	if user, pass, ok := r.BasicAuth(); ok {
-		r.SetBasicAuth(Clean(user), Clean(pass))
 	}
 }
 
+func stripControl(s string) string {
+	if !strings.ContainsFunc(s, func(r rune) bool { return r < 32 || r == 127 }) {
+		return s
+	}
+	return strings.Map(func(r rune) rune {
+		if r < 32 || r == 127 {
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// Clean aggressively escapes and strips a single value. Kept for the demo
+// handlers, not applied to proxied requests.
 func Clean(s string) string {
 	s = strings.ReplaceAll(s, "\x00", "")
 	s = strings.TrimSpace(s)
@@ -158,22 +173,63 @@ func checkPath(r *http.Request) bool {
 }
 
 func checkFormData(r *http.Request) bool {
-	_ = r.ParseForm()
-	for _, vals := range r.Form {
-		for _, v := range vals {
-			if isMaliciousString(v) {
-				return true
-			}
-		}
+	// only urlencoded bodies are inspected; json/multipart go through as-is
+	// (multipart is only checked if the backend-side handler parsed it)
+	ct, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if ct != "application/x-www-form-urlencoded" {
+		return false
 	}
-	for _, vals := range r.PostForm {
-		for _, v := range vals {
-			if isMaliciousString(v) {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut && r.Method != http.MethodPatch {
+		return false
+	}
+
+	body := snapshotBody(r, maxFormSnapshot)
+	if body == nil {
+		return false
+	}
+
+	// check the raw form the same way the raw query is checked
+	if isMaliciousString(string(body)) {
+		return true
+	}
+	vals, err := url.ParseQuery(string(body))
+	if err != nil {
+		return false
+	}
+	for k, vs := range vals {
+		if isMaliciousString(k) {
+			return true
+		}
+		for _, v := range vs {
+			if isMaliciousString(v) || hasUploadExtension(strings.ToLower(v)) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// snapshotBody reads up to limit bytes of the body and puts an identical
+// reader back so the proxy still forwards it. Returns nil when there is no
+// body or it is bigger than limit (size limits are enforced elsewhere).
+func snapshotBody(r *http.Request, limit int64) []byte {
+	if r.Body == nil || r.Body == http.NoBody {
+		return nil
+	}
+	if r.ContentLength > limit {
+		return nil
+	}
+	buf, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
+	_ = r.Body.Close()
+	if err != nil {
+		r.Body = io.NopCloser(bytes.NewReader(buf))
+		return nil
+	}
+	r.Body = io.NopCloser(bytes.NewReader(buf))
+	if int64(len(buf)) > limit {
+		return nil
+	}
+	return buf
 }
 
 func checkMultipartForm(r *http.Request) bool {
@@ -189,7 +245,7 @@ func checkMultipartForm(r *http.Request) bool {
 	}
 	for _, files := range r.MultipartForm.File {
 		for _, fh := range files {
-			if isMaliciousString(fh.Filename) {
+			if isMaliciousString(fh.Filename) || hasUploadExtension(strings.ToLower(fh.Filename)) {
 				return true
 			}
 		}
@@ -306,6 +362,9 @@ func checkBasicAuth(r *http.Request) bool {
 }
 
 func isMaliciousString(s string) bool {
+	if utf7Regex.MatchString(s) {
+		return true
+	}
 	s = strings.ToLower(s)
 	// CRLF injection check (for forms and any string input)
 	if strings.Contains(s, "\r\n") || strings.Contains(s, "\n") || strings.Contains(s, "\r") {
@@ -338,10 +397,8 @@ func hasPathTraversal(s string) bool {
 }
 
 func hasCommandInjection(s string) bool {
-	// shell metacharacters
-	if strings.Contains(s, "; cat ") || strings.Contains(s, "| whoami") ||
-		strings.Contains(s, "; ls") || strings.Contains(s, "| ls") ||
-		strings.Contains(s, "; id") || strings.Contains(s, "| id") {
+	// shell metachar + command word, "foo | identity" used to trip "| id"
+	if shellCmdRegex.MatchString(s) {
 		return true
 	}
 
@@ -427,32 +484,42 @@ func hasTemplateInjection(s string) bool {
 	return false
 }
 
+// uploadExts are executable server-side extensions we refuse in upload filenames
+var uploadExts = []string{
+	".php", ".phtml", ".php3", ".php5", ".phar", ".asp", ".aspx", ".jsp", ".jspx",
+	".exe", ".sh", ".bat", ".cmd", ".ps1",
+	".cgi", ".pl", ".py", ".rb",
+}
+
+// hasMaliciousFileExtension catches extension tricks (shell.php.jpg,
+// shell.php%00.jpg). A plain /index.php path is not flagged: that is just
+// what a PHP backend serves, and blocking it made the WAF unusable in front
+// of WordPress or any Django/Rails app.
 func hasMaliciousFileExtension(s string) bool {
-	// dangerous file extensions
-	dangerousExts := []string{
-		".php", ".asp", ".aspx", ".jsp", ".jspx",
-		".exe", ".sh", ".bat", ".cmd", ".ps1",
-		".cgi", ".pl", ".py", ".rb",
+	if decoyExtRegex.MatchString(s) {
+		return true
 	}
-	for _, ext := range dangerousExts {
-		if strings.HasSuffix(s, ext) {
-			return true
-		}
+	for _, ext := range uploadExts {
 		// double extension bypass
 		if strings.Contains(s, ext+".") {
 			return true
 		}
-	}
-	// null byte in filename
-	if strings.Contains(s, ".php\x00") || strings.Contains(s, ".asp\x00") {
-		return true
-	}
-	// URL-encoded null byte
-	if strings.Contains(s, ".php%00") || strings.Contains(s, ".asp%00") ||
-		strings.Contains(s, ".jsp%00") {
-		return true
+		// null byte truncation, literal or encoded
+		if strings.Contains(s, ext+"\x00") || strings.Contains(s, ext+"%00") {
+			return true
+		}
 	}
 	return false
+}
+
+// hasUploadExtension is the strict form, used for multipart upload filenames
+func hasUploadExtension(s string) bool {
+	for _, ext := range uploadExts {
+		if strings.HasSuffix(s, ext) {
+			return true
+		}
+	}
+	return hasMaliciousFileExtension(s)
 }
 
 func hasOGNLInjection(s string) bool {
@@ -472,9 +539,11 @@ func hasXSSPatterns(s string) bool {
 		return true
 	}
 
-	// protocol handlers
+	// protocol handlers. "data:" alone hits data:image/png in query params
+	// and "file:" hits /profile:edit, so both need the dangerous form
 	if strings.Contains(s, "javascript:") || strings.Contains(s, "vbscript:") ||
-		strings.Contains(s, "data:") || strings.Contains(s, "file:") {
+		strings.Contains(s, "data:text/html") || strings.Contains(s, "data:application/") ||
+		strings.Contains(s, "file://") {
 		return true
 	}
 
@@ -511,8 +580,12 @@ func hasXSSPatterns(s string) bool {
 		return true
 	}
 
-	// DOM-based and special patterns
-	if strings.Contains(s, "document.") || strings.Contains(s, "window.") ||
+	// DOM-based and special patterns. "document." on its own matched
+	// /files/document.pdf, so only the sinks
+	if strings.Contains(s, "document.cookie") || strings.Contains(s, "document.write") ||
+		strings.Contains(s, "document.location") || strings.Contains(s, "document.domain") ||
+		strings.Contains(s, "window.location") || strings.Contains(s, "window.open") ||
+		strings.Contains(s, "window.name") ||
 		strings.Contains(s, "eval(") || strings.Contains(s, "alert(") ||
 		strings.Contains(s, "prompt(") || strings.Contains(s, "confirm(") {
 		return true
@@ -524,16 +597,17 @@ func hasXSSPatterns(s string) bool {
 		return true
 	}
 
-	// Template injection
+	// Template injection. ${name} placeholders are common in urls, only
+	// flag when the braces hold an expression
 	if strings.Contains(s, "{{constructor") || strings.Contains(s, "dangerouslysetinnerhtml") ||
-		strings.Contains(s, "v-html") || strings.Contains(s, "${") {
+		strings.Contains(s, "v-html") || exprTemplateRegex.MatchString(s) {
 		return true
 	}
 
-	// Encoding bypasses
+	// Encoding bypasses. %3C/%3E on their own are just < and > in a
+	// search term, the decoded pass catches the actual tag
 	if strings.Contains(s, "&#") || strings.Contains(s, "\\u") ||
-		strings.Contains(s, "\\x") || strings.Contains(s, "%3c") ||
-		strings.Contains(s, "%3e") {
+		strings.Contains(s, "\\x") || encodedTagRegex.MatchString(s) {
 		return true
 	}
 
@@ -587,14 +661,15 @@ func hasSQLInjectionPatterns(s string) bool {
 		strings.Contains(s, "/**/") {
 		return true
 	}
+	// "hands--on" contains "and", so the or/and has to be a word
 	if strings.Contains(s, "--") || strings.HasSuffix(s, "#") {
-		if containsSQLKeyword(s) || strings.Contains(s, "or") || strings.Contains(s, "and") {
+		if containsSQLKeyword(s) || boolOpRegex.MatchString(s) {
 			return true
 		}
 	}
 
 	// encoding bypasses
-	if strings.Contains(s, "\\u") || strings.Contains(s, "0x") ||
+	if strings.Contains(s, "\\u") || hexLiteralRegex.MatchString(s) ||
 		strings.Contains(s, "char(") || strings.Contains(s, "chr(") {
 		return true
 	}
@@ -607,17 +682,19 @@ func hasSQLInjectionPatterns(s string) bool {
 
 	// advanced functions - improved
 	if strings.Contains(s, "exec(") || strings.Contains(s, "execute(") ||
-		strings.Contains(s, "exec ") || strings.Contains(s, "execute ") ||
+		execProcRegex.MatchString(s) ||
 		strings.Contains(s, "xp_cmdshell") || strings.Contains(s, "sp_executesql") ||
 		strings.Contains(s, "into outfile") || strings.Contains(s, "into dumpfile") ||
 		strings.Contains(s, "load_file") || strings.Contains(s, "load data") {
 		return true
 	}
 
-	// privilege escalation - improved
-	if strings.Contains(s, "grant all") || strings.Contains(s, "grant ") ||
+	// privilege escalation. "grant " alone blocked "grant writing tips"
+	if strings.Contains(s, "grant all") || strings.Contains(s, "grant select") ||
+		strings.Contains(s, "grant insert") || strings.Contains(s, "grant update") ||
+		strings.Contains(s, "grant delete") || strings.Contains(s, "grant execute") ||
 		strings.Contains(s, "create user") || strings.Contains(s, "alter user") ||
-		strings.Contains(s, "revoke ") || strings.Contains(s, "identified by") {
+		strings.Contains(s, "revoke all") || strings.Contains(s, "identified by") {
 		return true
 	}
 
@@ -628,11 +705,15 @@ func hasSQLInjectionPatterns(s string) bool {
 		return true
 	}
 
-	// boolean blind variations
-	if strings.Contains(s, "or true") || strings.Contains(s, "and false") ||
-		strings.Contains(s, "ascii(") || strings.Contains(s, "substring(") ||
-		strings.Contains(s, "length(") {
+	// boolean blind variations, the functions need sql context around them
+	if strings.Contains(s, "or true") || strings.Contains(s, "and false") {
 		return true
+	}
+	if strings.Contains(s, "ascii(") || strings.Contains(s, "substring(") ||
+		strings.Contains(s, "length(") {
+		if containsSQLKeyword(s) || strings.Contains(s, "'") || boolOpRegex.MatchString(s) {
+			return true
+		}
 	}
 
 	// error-based
@@ -643,8 +724,7 @@ func hasSQLInjectionPatterns(s string) bool {
 
 	// order/group by - only flag if combined with dangerous patterns
 	if strings.Contains(s, "order by") || strings.Contains(s, "group by") {
-		if strings.Contains(s, "union") || strings.Contains(s, "select") ||
-			strings.Contains(s, "--") || strings.Contains(s, "#") {
+		if containsSQLKeyword(s) || strings.Contains(s, "--") || strings.Contains(s, "#") {
 			return true
 		}
 	}
@@ -663,26 +743,20 @@ func hasSQLInjectionPatterns(s string) bool {
 	}
 
 	// batch queries - semicolon with SQL keywords
-	if strings.Contains(s, ";") {
-		if containsSQLKeyword(s) || strings.Contains(s, "select") ||
-			strings.Contains(s, "delete") || strings.Contains(s, "update") ||
-			strings.Contains(s, "insert") || strings.Contains(s, "drop") {
-			return true
-		}
+	if strings.Contains(s, ";") && containsSQLKeyword(s) {
+		return true
 	}
 
 	// evasion: tab/newline mixing
 	if strings.Contains(s, "\t") || strings.Contains(s, "\n") || strings.Contains(s, "\r") {
-		if containsSQLKeyword(s) || strings.Contains(s, "union") || strings.Contains(s, "select") ||
-			strings.Contains(s, " or ") || strings.Contains(s, " and ") {
+		if containsSQLKeyword(s) || strings.Contains(s, " or ") || strings.Contains(s, " and ") {
 			return true
 		}
 	}
 
 	// evasion: parenthesis obfuscation - (1)or(1)=(1) pattern
 	if strings.Count(s, "(") > 2 || strings.Count(s, ")") > 2 {
-		if strings.Contains(s, "union") || strings.Contains(s, "select") ||
-			strings.Contains(s, ")or(") || strings.Contains(s, ")and(") {
+		if containsSQLKeyword(s) || strings.Contains(s, ")or(") || strings.Contains(s, ")and(") {
 			return true
 		}
 	}
@@ -703,19 +777,15 @@ func hasSQLInjectionPatterns(s string) bool {
 		}
 	}
 
-	// evasion: LIKE with and/or (even without wildcards)
+	// evasion: LIKE with and/or, needs a quote or wildcard so
+	// "do you like cats or dogs" passes
 	if strings.Contains(s, " like ") || strings.Contains(s, " like'") ||
 		strings.Contains(s, "'like'") {
-		if strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
-			strings.Contains(s, "+or+") || strings.Contains(s, "+and+") {
+		if (strings.Contains(s, "'") || strings.Contains(s, "%")) &&
+			(strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
+				strings.Contains(s, "+or+") || strings.Contains(s, "+and+")) {
 			return true
 		}
-	}
-
-	// charset: UTF-7 encoded - +AD pattern
-	if strings.Contains(s, "+ad") || strings.Contains(s, "+ag") ||
-		strings.Contains(s, "+za") {
-		return true
 	}
 
 	// charset: UTF-16 bypass - %00 with SQL patterns
@@ -739,21 +809,20 @@ func hasSQLInjectionPatterns(s string) bool {
 		}
 	}
 
-	// logic: BETWEEN - any between with and
-	if strings.Contains(s, " between ") || strings.Contains(s, "+between+") {
+	// logic: BETWEEN with numeric or quoted operands
+	if betweenRegex.MatchString(strings.ReplaceAll(s, "+", " ")) {
 		return true
 	}
 
-	// type-juggling: float comparison - dot with or/and/operators
-	if strings.Contains(s, ".") &&
-		(strings.Contains(s, "=") || strings.Contains(s, ">") || strings.Contains(s, "<")) &&
-		(strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
-			strings.Contains(s, "+or+") || strings.Contains(s, "+and+")) {
+	// type-juggling: "or 1.5=1.5" tautology. Used to be any dot plus any
+	// comparator plus any or/and, which blocked "price>10.5 or free"
+	if numCompareRegex.MatchString(strings.ReplaceAll(s, "+", " ")) {
 		return true
 	}
 
-	// type-juggling: scientific notation - e followed by digit
-	if (strings.Contains(s, "e+") || strings.Contains(s, "e-") || strings.Contains(s, "e0")) &&
+	// type-juggling: scientific notation next to sql context. The old
+	// "e+" substring matched every "like+cats" plus-encoded query
+	if sciNotationRegex.MatchString(s) &&
 		(containsSQLKeyword(s) || strings.Contains(s, " or ") || strings.Contains(s, " and ") ||
 			strings.Contains(s, "+or+") || strings.Contains(s, "+and+")) {
 		return true
@@ -785,13 +854,7 @@ func hasSQLInjectionPatterns(s string) bool {
 }
 
 func containsSQLKeyword(s string) bool {
-	keywords := []string{"select", "union", "insert", "update", "delete", "drop", "create", "alter", "exec", "execute", "grant"}
-	for _, kw := range keywords {
-		if strings.Contains(s, kw) {
-			return true
-		}
-	}
-	return false
+	return sqlKeywordWordRegex.MatchString(s)
 }
 
 // ValidateHeaders checks for malformed or malicious headers
@@ -848,7 +911,7 @@ func ValidateHeaders(r *http.Request) (bool, string) {
 	// Validate Content-Length if present
 	if contentLength := r.Header.Get("Content-Length"); contentLength != "" {
 		// Content-Length should only contain digits
-		if !regexp.MustCompile(`^\d+$`).MatchString(contentLength) {
+		if !contentLengthRegex.MatchString(contentLength) {
 			return false, "invalid Content-Length header"
 		}
 	}
@@ -877,6 +940,5 @@ func isValidHeaderName(name string) bool {
 
 	// Header names should only contain alphanumeric characters and hyphens
 	// and should not start or end with a hyphen
-	validNameRegex := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]$|^[a-zA-Z]$`)
-	return validNameRegex.MatchString(name)
+	return headerNameRegex.MatchString(name)
 }

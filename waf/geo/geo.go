@@ -92,27 +92,26 @@ func Lookup(ip string) *GeoData {
 		return &GeoData{IP: ip, CountryCode: "XX", CountryName: "Unknown"}
 	}
 
-	geoIP.mu.RLock()
-	defer geoIP.mu.RUnlock()
+	geo := &GeoData{IP: ip, CountryCode: "XX", CountryName: "Unknown"}
 
+	geoIP.mu.RLock()
 	for _, ipRange := range geoIP.ranges {
 		if ipRange.network != nil && ipRange.network.Contains(parsedIP) {
-			geo := &GeoData{
-				IP:          ip,
-				CountryCode: ipRange.CountryCode,
-				CountryName: ipRange.CountryName,
-			}
-			geoIP.addToCache(ip, geo)
-			return geo
+			geo.CountryCode = ipRange.CountryCode
+			geo.CountryName = ipRange.CountryName
+			break
 		}
 	}
+	geoIP.mu.RUnlock()
 
-	geo := &GeoData{IP: ip, CountryCode: "XX", CountryName: "Unknown"}
 	geoIP.addToCache(ip, geo)
 	return geo
 }
 
+// addToCache takes the write lock itself, never call it with mu held
 func (g *GeoIP) addToCache(ip string, data *GeoData) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	if g.cacheCount >= g.cacheSize {
 		g.cache = make(map[string]*GeoData)
 		g.cacheCount = 0

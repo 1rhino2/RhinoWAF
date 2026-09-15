@@ -1,12 +1,13 @@
 {
-  "version": "1.0.5",
+  "version": "1.0.6",
   "server": {
     "listen": ":8080",
     "read_header_timeout_seconds": 10,
     "read_timeout_seconds": 30,
     "write_timeout_seconds": 60,
     "idle_timeout_seconds": 120,
-    "max_header_bytes": 1048576
+    "max_header_bytes": 1048576,
+    "trusted_proxies": []
   },
   "backend": {
     "proxy_url": "http://localhost:9000",
@@ -44,6 +45,13 @@
     "violation_ban_duration_minutes": 30,
     "idle_timeout_minutes": 5,
     "handshake_timeout_seconds": 10
+  },
+  "csrf": {
+    "enabled": false,
+    "double_submit": false,
+    "secure_cookie": false,
+    "token_ttl_hours": 1,
+    "exempt_paths": ["/health", "/metrics", "/challenge/", "/fingerprint/", "/csrf/token", "/api/webhooks"]
   },
   "logging": {
     "enabled": true,

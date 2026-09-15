@@ -21,6 +21,15 @@ var (
 	globalSmuggleChecker *smuggling.Detector
 )
 
+// SetWebSocketHandler swaps in the handler built from features.json. Without
+// this the websocket section only fed the stats endpoint and enforcement ran
+// on the hardcoded defaults below.
+func SetWebSocketHandler(h *websocket.Handler) {
+	if h != nil {
+		globalWSHandler = h
+	}
+}
+
 func init() {
 	globalWSHandler = websocket.NewHandler(websocket.Config{
 		Enabled:              true,
@@ -61,9 +70,7 @@ func skipProtectPath(path string) bool {
 		return true
 	case strings.HasPrefix(path, "/challenge/"):
 		return true
-	case strings.HasPrefix(path, "/fingerprint/"):
-		return true
-	case path == "/csrf/token", path == "/websocket/stats", path == "/vhost/stats":
+	case path == "/fingerprint/stats", path == "/websocket/stats", path == "/vhost/stats":
 		return true
 	default:
 		return false
