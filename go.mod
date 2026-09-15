@@ -8,6 +8,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/quic-go v0.59.1
+	go.etcd.io/bbolt v1.5.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
