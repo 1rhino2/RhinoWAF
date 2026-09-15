@@ -81,6 +81,7 @@ func main() {
 		listenFlag  = flag.String("listen", "", "address to listen on, e.g. :8080 or 127.0.0.1:8080 (env RHINOWAF_LISTEN, overrides features.json)")
 		backendFlag = flag.String("backend", "", "fallback backend URL when no backends.json (env RHINOWAF_BACKEND, overrides features.json)")
 		featuresArg = flag.String("features", "", "path to features.json (env RHINOWAF_FEATURES, default <config-dir>/features.json)")
+		checkRules  = flag.Bool("check-rules", false, "compile the ruleset and config, print the result, and exit (like nginx -t)")
 	)
 	flag.Parse()
 
@@ -184,7 +185,15 @@ func main() {
 	}
 	engRuleset, err := engLoader.Load()
 	if err != nil {
+		if *checkRules {
+			fmt.Fprintf(os.Stderr, "rules: FAILED: %v\n", err)
+			os.Exit(1)
+		}
 		log.Fatalf("engine: %v", err)
+	}
+	if *checkRules {
+		fmt.Printf("config ok, %d rules loaded (ruleset %s)\n", engRuleset.RuleCount(), engRuleset.Hash())
+		return
 	}
 	eng := engine.New(cfg.Engine, engRuleset)
 	if cfg.Logging.Enabled {

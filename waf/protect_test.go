@@ -50,7 +50,7 @@ func TestVersionBranding(t *testing.T) {
 		t.Fatalf("expected RhinoWAF branding, got %s", Name)
 	}
 	// stay on the 1.0.x line the project reset to; bump here on a minor/major
-	if !strings.HasPrefix(Version, "1.0.") {
-		t.Fatalf("expected a 1.0.x version, got %s", Version)
+	if !strings.HasPrefix(Version, "2.0.") {
+		t.Fatalf("expected a 2.0.x version, got %s", Version)
 	}
 }

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.6",
+  "version": "2.0.0",
   "server": {
     "listen": ":8080",
     "read_header_timeout_seconds": 10,
@@ -7,7 +7,7 @@
     "write_timeout_seconds": 60,
     "idle_timeout_seconds": 120,
     "max_header_bytes": 1048576,
-    "trusted_proxies": []
+    "trusted_proxies": null
   },
   "backend": {
     "proxy_url": "http://localhost:9000",
@@ -18,8 +18,11 @@
     "enabled": true,
     "default_type": "javascript",
     "pow_difficulty": 5,
-    "whitelist_paths": ["/challenge/"],
-    "require_for_paths": []
+    "whitelist_paths": [
+      "/challenge/"
+    ],
+    "require_for_paths": [],
+    "pass_ttl_hours": 12
   },
   "fingerprinting": {
     "enabled": true,
@@ -51,7 +54,14 @@
     "double_submit": false,
     "secure_cookie": false,
     "token_ttl_hours": 1,
-    "exempt_paths": ["/health", "/metrics", "/challenge/", "/fingerprint/", "/csrf/token", "/api/webhooks"]
+    "exempt_paths": [
+      "/health",
+      "/metrics",
+      "/challenge/",
+      "/fingerprint/",
+      "/csrf/token",
+      "/api/webhooks"
+    ]
   },
   "logging": {
     "enabled": true,
@@ -59,5 +69,79 @@
     "max_age_days": 30,
     "max_backups": 3,
     "compress": true
+  },
+  "engine": {
+    "enabled": true,
+    "mode": "block",
+    "paranoia": 1,
+    "inbound_threshold": 5,
+    "outbound_threshold": 4,
+    "scoring_mode": "per_arg",
+    "rules_dir": "",
+    "extra_rules_dir": "rules.d",
+    "allowed_methods": [
+      "GET",
+      "HEAD",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS"
+    ],
+    "allowed_content_types": [
+      "application/x-www-form-urlencoded",
+      "multipart/form-data",
+      "application/json",
+      "application/xml",
+      "text/xml",
+      "text/plain"
+    ],
+    "limits": {
+      "max_body_inspect_bytes": 262144,
+      "max_args": 500,
+      "max_arg_length": 65536,
+      "max_json_depth": 32,
+      "max_json_leaves": 5000,
+      "max_multipart_parts": 100,
+      "max_file_head_bytes": 0,
+      "max_transform_bytes": 262144
+    },
+    "body_over_limit": "inspect_prefix",
+    "explain_on_block": "rules",
+    "log_allowed": false,
+    "response": {
+      "mode": "detect",
+      "inspect_status": "5xx",
+      "max_bytes": 16384,
+      "decompress_gzip": true
+    },
+    "paths": null
+  },
+  "state": {
+    "enabled": true,
+    "path": ""
+  },
+  "autoban": {
+    "enabled": true,
+    "threshold": 6,
+    "window_seconds": 120,
+    "ban_minutes": 60
+  },
+  "exemptions": {
+    "enabled": false,
+    "ips": null,
+    "cidrs": null,
+    "user_agents": null,
+    "paths": null
+  },
+  "body_limits": {
+    "enabled": false,
+    "default_bytes": 0,
+    "per_path": null
+  },
+  "honeypot": {
+    "enabled": false,
+    "paths": null,
+    "ban_minutes": 0
   }
 }

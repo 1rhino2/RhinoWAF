@@ -113,3 +113,13 @@ func TestCSRFAndTrustedProxiesConfig(t *testing.T) {
 		t.Error("invalid trusted_proxies cidr should fail validation")
 	}
 }
+
+// the shipped example must always load cleanly with DisallowUnknownFields, so
+// it can never drift from the struct without this failing.
+func TestExampleConfigLoads(t *testing.T) {
+	for _, p := range []string{"../../config/features.example.json", "../../config/features.json"} {
+		if _, err := Load(p); err != nil {
+			t.Errorf("%s did not load: %v", p, err)
+		}
+	}
+}

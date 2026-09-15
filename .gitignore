@@ -17,3 +17,4 @@ logs/
 handlers/config/
 waf/vhost/config/
 waf/config/ip_rules.json
+rhinowaf

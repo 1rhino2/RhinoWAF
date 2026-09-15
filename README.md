@@ -21,9 +21,33 @@ of things:
 - Browser fingerprinting to catch bot networks sharing one browser
 - CSRF token validation
 - HTTP request smuggling detection
-- Input sanitization (SQLi, XSS, path traversal, command injection)
+- A detection engine with anomaly scoring: SQLi (real tokenizer), XSS
+  (HTML-aware), RCE, path traversal, SSRF, SSTI, NoSQL, XXE, log4shell,
+  scanner fingerprints, and response leakage. Explains every block.
+- Persistent bans and signed challenge passes (survive a restart)
+- Exemptions, per-path body limits, and honeypot traps
 - WebSocket connection and message limits
 - Reverse proxy with multi-vhost routing
+
+### How detection works
+
+Requests run through a rule engine, not a list of banned substrings. Each rule
+decodes the input it cares about (url, html, js, base64, ...) and matches it
+with a real detector: a SQL tokenizer that folds to a fingerprint, an HTML
+tokenizer for XSS, IP-form parsing for SSRF, and so on. Matches add to an
+anomaly score kept per argument, so one long legitimate value cannot pile up
+into a block while an attack spread across fields still adds up. When the score
+crosses the threshold the request is blocked and the reason is logged:
+
+```
+[ENGINE] BLOCK 203.0.113.9 POST /login score=7/5 pl=1 top=args:user rules=942100,942190 req=ab12
+```
+
+`grant writing tips`, `drop off the kids`, `O'Brien`, `url(image.png)` and
+`<p>hello <b>world</b></p>` all pass; `' or 1=1--` and `<img src=x onerror=>`
+do not. The rule format, operators, scoring, paranoia levels, and how to write
+an exclusion are in [docs/rules.md](docs/rules.md). Start a new site in
+`detect` mode to watch before you block.
 
 Good fit for a website, panel, store, or API on HTTP/HTTPS (ports 80/443).
 
@@ -33,7 +57,7 @@ and API.
 
 ## Status
 
-Version 1.0.x, active development. It is solid enough to self-host, but treat it
+Version 2.0.x, active development. It is solid enough to self-host, but treat it
 like software you test in staging first, not a drop-in swap for Cloudflare or
 ModSecurity. Run it against your real Host headers, APIs, and webhooks before you
 point production traffic at it. No warranty, you own the downtime risk.
@@ -71,7 +95,7 @@ the common knobs, the files and flags below cover it.
 
 | File | Controls |
 |------|----------|
-| `config/features.json` | App middleware: listen address, backend, trusted proxies, challenge, fingerprinting, websocket, CSRF, server timeouts, logging |
+| `config/features.json` | Everything: listen address, backend, trusted proxies, the detection engine, challenge, fingerprinting, websocket, CSRF, exemptions, body limits, honeypot, auto-ban, state, logging |
 | `config/ip_rules.json` | Per-IP rules, geo rules, global rate limits, proxy/Tor/hosting blocking |
 | `config/geoip.json` | CIDR to country mapping for geo rules |
 | `config/backends.json` | Multi-vhost routing (one instance, many domains to many backends) |
@@ -120,6 +144,7 @@ Flags win over environment variables, which win over `features.json`.
 | `-log-dir` | `RHINOWAF_LOG_DIR` | `./logs` | Where log files are written |
 | `-features` | `RHINOWAF_FEATURES` | `<config-dir>/features.json` | Path to features.json |
 | `-version` | | | Print version and exit |
+| `-check-rules` | | | Compile config and rules, print result, exit (like `nginx -t`) |
 
 Secrets stay in environment variables (never in the config files):
 
