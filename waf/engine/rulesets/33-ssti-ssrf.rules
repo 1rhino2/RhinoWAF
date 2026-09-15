@@ -1,0 +1,25 @@
+# template injection and ssrf. the ${...} / {{...}} checks require an
+# expression inside the braces so a literal ${placeholder} tracking tag or
+# a {{ mustache_variable }} stays clean.
+
+rule 934100 "server side template injection" {
+    category ssti
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, cookies, json
+    transforms urldecode
+    op rx (?i)(\{\{\s*[0-9]+\s*[*+/-]|\$\{\s*[0-9]+\s*[*+/-]|\{\{\s*(config|request|self|constructor|''\.__class__)|__class__|__globals__|__subclasses__|<%=\s*system)
+    tags ssti
+}
+
+rule 934300 "server side request forgery" {
+    category ssrf
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, cookies, json
+    transforms urldecode
+    op ssrfhost
+    tags ssrf, cwe:918
+}

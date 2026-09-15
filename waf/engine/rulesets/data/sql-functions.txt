@@ -1,0 +1,43 @@
+# sql metadata objects and dangerous functions. paranoia 2, since a few can
+# show up in developer text, but combined with the sqli tokenizer at pl1
+# this is belt and suspenders.
+information_schema
+sysobjects
+syscolumns
+pg_catalog
+pg_tables
+pg_sleep
+mysql.user
+sqlite_master
+xp_cmdshell
+sp_executesql
+sp_oacreate
+xp_regread
+xp_dirtree
+utl_http
+utl_inaddr
+dbms_pipe
+dbms_lock
+openrowset
+opendatasource
+load_file
+into outfile
+into dumpfile
+load data infile
+benchmark(
+waitfor delay
+extractvalue(
+updatexml(
+group_concat(
+version()
+@@version
+@@datadir
+@@hostname
+current_user(
+system_user(
+session_user(
+db_name(
+schema_name(
+sys.tables
+all_tables
+user_tables

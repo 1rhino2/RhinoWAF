@@ -1,0 +1,23 @@
+# nosql (mongo) operator injection, both as param names (user[$gt]) and json.
+
+rule 942600 "nosql operator in argument name" {
+    category nosql
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args_names, json_names
+    transforms urldecode
+    op rx (?i)\$(gt|gte|lt|lte|ne|eq|in|nin|regex|where|exists|or|and|not|expr|jsonschema)\b
+    tags nosql
+}
+
+rule 942610 "nosql operator in json value" {
+    category nosql
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, json
+    transforms urldecode
+    op rx (?i)\{\s*"?\$(where|gt|ne|regex|expr|function)"?\s*:
+    tags nosql:json
+}

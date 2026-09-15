@@ -1,0 +1,15 @@
+# internal events: parser and limit conditions. these are how the engine
+# reports its own findings (oversized body, malformed multipart) as scored
+# rules instead of magic. low scores, mostly notice.
+
+rule 200001 "request body over inspect limit" {
+    category proto
+    severity notice
+    paranoia 2
+    phase request-headers
+    targets method
+    op unconditional
+    action log
+    mode detect
+    tags rhinowaf:internal
+}

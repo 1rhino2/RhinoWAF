@@ -1,0 +1,24 @@
+# java: log4shell and ognl. jndi collapses ${lower:} style nesting first.
+
+rule 944100 "log4j jndi lookup" {
+    category rce
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, args_names, cookies, headers, ua, referer, json
+    transforms urldecode
+    op jndi
+    action block
+    tags rce:log4shell, cve:2021-44228
+}
+
+rule 944200 "ognl / spel expression" {
+    category rce
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, cookies, json, headers[referer]
+    transforms urldecode
+    op rx (?i)(@java\.lang\.runtime@|#_memberaccess|\(#context|%\{#|classloader\.)
+    tags rce:ognl
+}

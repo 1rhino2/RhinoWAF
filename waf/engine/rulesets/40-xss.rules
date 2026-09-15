@@ -1,0 +1,23 @@
+# cross site scripting. the xss operator tokenizes html, so it fires on a
+# dangerous tag, an on* handler or a script-scheme url, not on url( or xmlns.
+
+rule 941100 "xss (html detector)" {
+    category xss
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, args_names, cookies, json, xml, path, headers[referer]
+    transforms urldecode, htmldecode, jsdecode, nulls
+    op xss
+    tags xss, cwe:79
+}
+
+rule 941310 "utf-7 xss" {
+    category xss
+    severity critical
+    paranoia 2
+    phase request-body
+    targets args, cookies, json
+    op rx (?i)\+A(Dw|Dw-|D4)-?
+    tags xss:utf7
+}

@@ -1,0 +1,27 @@
+# database error signatures that leak stack, schema or driver detail.
+you have an error in your sql syntax
+warning: mysql
+mysql_fetch
+mysql_num_rows
+supplied argument is not a valid mysql
+ora-01756
+ora-00933
+ora-00921
+oracle error
+oracle.jdbc
+postgresql query failed
+pg_query()
+pg_exec()
+unclosed quotation mark after the character string
+microsoft ole db provider for sql server
+microsoft ole db provider for odbc drivers
+sqlite3.operationalerror
+sqlite_error
+system.data.sqlclient.sqlexception
+org.postgresql.util.psqlexception
+com.mysql.jdbc
+java.sql.sqlexception
+psql: error
+odbc driver
+db2 sql error
+sybase message

@@ -1,0 +1,14 @@
+# known scanner and tool signatures. a hit is a block on its own, nobody
+# runs sqlmap against you by accident.
+
+rule 913100 "security scanner user agent" {
+    category scanner
+    severity critical
+    paranoia 1
+    phase request-headers
+    targets ua
+    transforms lower
+    op pm @data/scanner-ua.txt
+    action block
+    tags scanner:ua
+}

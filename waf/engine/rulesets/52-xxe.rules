@@ -1,0 +1,12 @@
+# xml external entity. detectxxe wants the doctype + entity + system/public
+# shape, or an xinclude, so plain xml bodies are fine.
+
+rule 944300 "xml external entity" {
+    category xxe
+    severity critical
+    paranoia 1
+    phase request-body
+    targets body, xml
+    op detectxxe
+    tags xxe, cwe:611
+}

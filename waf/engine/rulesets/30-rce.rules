@@ -1,0 +1,35 @@
+# remote command execution. shellcmd needs a metachar before a real command
+# word, so "foo | identity" is fine and "; cat /etc/passwd" is not.
+
+rule 932100 "unix command injection" {
+    category rce
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, args_names, cookies, headers[user-agent], headers[referer], json, path
+    transforms urldecode, nulls, cmdline
+    op shellcmd @data/unix-commands.txt
+    tags rce, cwe:78
+}
+
+rule 932110 "command substitution" {
+    category rce
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, cookies, json, headers[referer]
+    transforms urldecode
+    op rx \$\((?:[a-z_/]+)|`[a-z_/]+ |\$\{IFS
+    tags rce:subst
+}
+
+rule 932200 "shellshock" {
+    category rce
+    severity critical
+    paranoia 1
+    phase request-headers
+    targets headers, ua, referer
+    op rx \(\)\s*\{.*;\s*\}
+    action block
+    tags rce:shellshock, cve:2014-6271
+}

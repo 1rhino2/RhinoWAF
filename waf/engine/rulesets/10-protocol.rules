@@ -1,0 +1,68 @@
+# protocol hygiene. method allowlist, host sanity, the header tricks used to
+# smuggle an intent past the app. mostly low score at pl1, the noisy ones
+# move to pl2 so a strict site can opt in.
+
+rule 911100 "method not allowed" {
+    category proto
+    severity critical
+    paranoia 1
+    phase request-headers
+    targets method
+    op rx ^(?i)(connect|trace|track|debug|propfind|proppatch|mkcol|copy|move|lock|unlock)$
+    action block
+    tags proto:method
+}
+
+rule 920100 "missing host header" {
+    category proto
+    severity warning
+    paranoia 2
+    phase request-headers
+    targets host
+    op streq
+    tags proto:host
+}
+
+rule 920280 "empty user agent" {
+    category proto
+    severity notice
+    paranoia 2
+    phase request-headers
+    targets ua
+    op streq
+    tags proto:ua
+}
+
+# these headers only exist to make a front proxy route to something the user
+# should not reach. their mere presence is the signal.
+rule 920200 "url override header" {
+    category proto
+    severity critical
+    paranoia 1
+    phase request-headers
+    targets headers[x-original-url], headers[x-rewrite-url]
+    op rx .
+    action block
+    tags proto:bypass
+}
+
+rule 920290 "crlf in argument (header injection)" {
+    category proto-attack
+    severity critical
+    paranoia 1
+    phase      request-body
+    targets args, args_names, cookies, headers[referer]
+    transforms urldecode
+    op rx [\r\n]
+    tags proto:crlf, cwe:113
+}
+
+rule 920240 "very long url" {
+    category proto
+    severity warning
+    paranoia 2
+    phase request-headers
+    targets path
+    op len >4096
+    tags proto:size
+}

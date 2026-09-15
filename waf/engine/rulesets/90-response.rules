@@ -1,0 +1,33 @@
+# response leakage. detect only by default (see engine.response.mode) so a
+# backend 500 does not turn into a WAF 403 until the operator opts in.
+
+rule 950100 "sql error in response" {
+    category leak
+    severity error
+    paranoia 1
+    phase response-body
+    targets resp_body
+    transforms lower
+    op pm @data/sql-errors.txt
+    tags leak:sql
+}
+
+rule 950140 "stack trace in response" {
+    category leak
+    severity error
+    paranoia 1
+    phase response-body
+    targets resp_body
+    op rx (?i)(java\.lang\.[a-z]+exception|traceback \(most recent call last\)|goroutine \d+ \[running\]|\bon line \d+ in |server error in '/' application|\.rb:\d+:in )
+    tags leak:trace
+}
+
+rule 950160 "private key in response" {
+    category leak
+    severity critical
+    paranoia 1
+    phase response-body
+    targets resp_body
+    op contains -----BEGIN
+    tags leak:key
+}

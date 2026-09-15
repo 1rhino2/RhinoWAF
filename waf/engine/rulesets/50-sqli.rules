@@ -1,0 +1,37 @@
+# sql injection. the sqli operator tokenizes like a db parser and folds to a
+# fingerprint, so "grant writing tips" and "drop off the kids" pass while
+# tautologies, unions, stacked and blind payloads do not.
+
+rule 942100 "sql injection (tokenizer)" {
+    category sqli
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, args_names, cookies, json, xml, path, headers[referer]
+    transforms urldecode, nulls
+    skip opaque
+    op sqli
+    tags sqli, cwe:89
+}
+
+rule 942150 "sql injection in json values" {
+    category sqli
+    severity critical
+    paranoia 1
+    phase request-body
+    targets json
+    op sqli
+    skip opaque
+    tags sqli:json
+}
+
+rule 942260 "sql function in query" {
+    category sqli
+    severity warning
+    paranoia 2
+    phase request-body
+    targets args, cookies, json
+    transforms urldecode, lower, remove_comments_char
+    op pm @data/sql-functions.txt
+    tags sqli:func
+}

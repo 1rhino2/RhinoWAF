@@ -1,0 +1,24 @@
+# local file inclusion and path traversal. detectpath runs after decoding
+# so %2e%2e%2f and ..%c0%af are already resolved.
+
+rule 930100 "path traversal" {
+    category lfi
+    severity critical
+    paranoia 1
+    phase      request-body
+    targets path, args, args_names, cookies, headers[referer]
+    transforms urldecode_uni, utf8, nulls
+    op detectpath
+    tags lfi, cwe:22
+}
+
+rule 930120 "access to sensitive file" {
+    category lfi
+    severity critical
+    paranoia 1
+    phase      request-body
+    targets path, args
+    transforms urldecode, lower
+    op pm @data/restricted-files.txt
+    tags lfi:files
+}
