@@ -151,7 +151,10 @@ func (w *jsonWalker) walk(dec *json.Decoder, path string, depth int) error {
 		return errTooDeep
 	}
 	if w.full() {
-		return nil
+		// over the leaf/arg cap: still consume the value, otherwise the
+		// caller's dec.More() loop never advances and spins forever. found
+		// by the 20000-leaf stress test.
+		return skipValue(dec)
 	}
 	tok, err := dec.Token()
 	if err != nil {
@@ -199,6 +202,29 @@ func (w *jsonWalker) walk(dec *json.Decoder, path string, depth int) error {
 		w.emit(path, t.String(), false)
 	}
 	return nil
+}
+
+// skipValue consumes one complete json value without recording it: a
+// scalar is one token, an object or array runs to its matching close.
+func skipValue(dec *json.Decoder) error {
+	depth := 0
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if d, ok := tok.(json.Delim); ok {
+			switch d {
+			case '{', '[':
+				depth++
+			case '}', ']':
+				depth--
+			}
+		}
+		if depth <= 0 {
+			return nil
+		}
+	}
 }
 
 func (w *jsonWalker) emit(name, val string, isName bool) {

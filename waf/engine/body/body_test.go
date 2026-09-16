@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 var lim = Limits{MaxInspect: 1 << 20, MaxArgs: 500, MaxArgLen: 65536, MaxJSONDepth: 32, MaxJSONLeaves: 5000, MaxParts: 100}
@@ -158,4 +159,36 @@ func FuzzParseJSON(f *testing.F) {
 func FuzzParseForm(f *testing.F) {
 	f.Add("a=1&b=2")
 	f.Fuzz(func(t *testing.T, s string) { ParseForm([]byte(s), lim, nil) })
+}
+
+// regression: with more leaves than the cap, the walker used to return
+// without consuming the value and the array loop spun forever
+func TestParseJSONLeafCapDoesNotHang(t *testing.T) {
+	var sb strings.Builder
+	sb.WriteString(`{"items":[`)
+	for i := 0; i < 20000; i++ {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString(`"v"`)
+	}
+	sb.WriteString(`],"after":"seen"}`)
+	done := make(chan bool, 1)
+	var out []KV
+	var ok bool
+	go func() {
+		out, ok = ParseJSON([]byte(sb.String()), Limits{MaxJSONLeaves: 100, MaxArgs: 1000, MaxJSONDepth: 32}, nil)
+		done <- true
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ParseJSON hung on a body over the leaf cap")
+	}
+	if !ok {
+		t.Fatal("parse reported failure")
+	}
+	if len(out) > 300 {
+		t.Fatalf("leaf cap not honored: %d values", len(out))
+	}
 }
