@@ -6,6 +6,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"rhinowaf/waf"
+	"rhinowaf/waf/engine"
 	"time"
 )
 
@@ -49,6 +50,13 @@ func buildProxy(backendURL string, maxIdleConns int) {
 
 	proxy = httputil.NewSingleHostReverseProxy(target)
 	proxy.Transport = transport
+	// response phase of the detection engine (leak detection), nil-safe
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		if eng := engine.Default(); eng != nil {
+			return eng.ModifyResponse(resp)
+		}
+		return nil
+	}
 	// backend down / unreachable is a gateway failure, say so with 502 instead
 	// of a bare 200 body that clients mistake for a real page
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {

@@ -9,7 +9,7 @@ rule 934100 "server side template injection" {
     phase request-body
     targets args, cookies, json
     transforms urldecode
-    op rx (?i)(\{\{\s*[0-9]+\s*[*+/-]|\$\{\s*[0-9]+\s*[*+/-]|\{\{\s*(config|request|self|constructor|''\.__class__)|__class__|__globals__|__subclasses__|<%=\s*system)
+    op rx (?i)(\{\{=?\s*[0-9]+\s*[*+/-]\s*[0-9]|\$\{[^}]*[0-9]+\s*[*+/-]\s*[0-9]|\{\s*[0-9]+\s*[*+/-]\s*[0-9]+\s*\}|<%=\s*[0-9]+\s*[*+/-]|#\{\s*[0-9]+\s*[*+/-]|\{\^[a-z_]+\}|\{\{\s*(config|request|self|constructor|''\.__class__)|__class__|__globals__|__subclasses__|<%=\s*system)
     tags ssti
 }
 

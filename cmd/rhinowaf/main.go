@@ -200,6 +200,7 @@ func main() {
 		eng.SetSink(engine.NewFileSink(filepath.Join(lgDir, "engine.log"),
 			cfg.Logging.MaxSizeMB, cfg.Logging.MaxAgeDays, cfg.Logging.MaxBackups, cfg.Logging.Compress))
 	}
+	eng.SetLoader(engLoader)
 	engine.SetDefault(eng)
 	if rs := eng.Ruleset(); rs != nil {
 		log.Printf("engine: %d rules loaded (ruleset %s), mode=%s paranoia=%d", rs.RuleCount(), rs.Hash(), cfg.Engine.Mode, cfg.Engine.Paranoia)
@@ -308,6 +309,8 @@ func main() {
 	reloadMgr, err := reload.NewManager(reload.Config{
 		IPRulesPath:  ipRulesPath,
 		GeoDBPath:    geoDBPath,
+		RulesDirs:    eng.RulesDirs(),
+		RulesReload:  eng.ReloadRules,
 		DebounceTime: 2 * time.Second,
 		WatchEnabled: true,
 	})

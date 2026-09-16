@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"rhinowaf/waf"
+	"rhinowaf/waf/engine"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +20,9 @@ type BackendConfig struct {
 	Domain  string `json:"domain"`
 	Backend string `json:"backend"`
 	Enabled bool   `json:"enabled"`
+	// per-site engine tuning: mode, paranoia, threshold, disabled_rules,
+	// detect_rules, exclusions, paths. nil means the global engine config.
+	Engine *engine.SiteOverride `json:"engine,omitempty"`
 }
 
 type VHostConfig struct {
@@ -75,6 +80,7 @@ func (m *VHostManager) initProxies() error {
 
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
 		proxy.Transport = newTransport()
+		proxy.ModifyResponse = engineModifyResponse
 
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("Backend error for %s -> %s: %v", backend.Domain, backend.Backend, err)
@@ -92,6 +98,7 @@ func (m *VHostManager) initProxies() error {
 		}
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
 		proxy.Transport = newTransport()
+		proxy.ModifyResponse = engineModifyResponse
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("Default backend error: %v", err)
 			http.Error(w, "Backend unavailable", http.StatusBadGateway)
@@ -100,6 +107,26 @@ func (m *VHostManager) initProxies() error {
 		log.Printf("Configured default backend: %s", m.config.DefaultBackend)
 	}
 
+	// hand the per-site engine blocks to the engine (also on reload)
+	if eng := engine.Default(); eng != nil {
+		sites := map[string]*engine.SiteOverride{}
+		for _, b := range m.config.Backends {
+			if b.Enabled && b.Engine != nil {
+				sites[strings.ToLower(b.Domain)] = b.Engine
+			}
+		}
+		eng.SetSites(sites)
+	}
+
+	return nil
+}
+
+// engineModifyResponse runs the engine's response phase; a nil engine is a
+// no-op so the proxy works in tests that never install one.
+func engineModifyResponse(resp *http.Response) error {
+	if eng := engine.Default(); eng != nil {
+		return eng.ModifyResponse(resp)
+	}
 	return nil
 }
 
@@ -119,8 +146,12 @@ func (m *VHostManager) GetProxy(host string) *httputil.ReverseProxy {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	hostOnly := strings.Split(host, ":")[0]
-	hostLower := strings.ToLower(hostOnly)
+	// net.SplitHostPort handles [::1]:8080; a bare host has no port
+	hostOnly := host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		hostOnly = h
+	}
+	hostLower := strings.ToLower(strings.Trim(hostOnly, "[]"))
 
 	if proxy, ok := m.proxies[hostLower]; ok {
 		return proxy

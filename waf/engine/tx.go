@@ -25,6 +25,8 @@ type Tx struct {
 	limits   body.Limits
 	bodySkip string
 	nextIdx  int
+	cand     []bool // prefilter candidate bitmap, reused
+	pfA, pfB []byte // prefilter scratch, reused
 }
 
 func newTx() *Tx {

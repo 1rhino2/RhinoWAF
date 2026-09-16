@@ -10,3 +10,16 @@ rule 944300 "xml external entity" {
     op detectxxe
     tags xxe, cwe:611
 }
+
+# an internal entity declaration has no business in a request body either:
+# billion laughs needs nothing external
+rule 944310 "xml entity declaration in request" {
+    category xxe
+    severity critical
+    paranoia 1
+    phase request-body
+    targets body, xml, args
+    transforms urldecode, lower
+    op rx <!doctype[^>]*\[[^\]]*<!entity\s+[a-z_][\w.-]*\s+
+    tags xxe:entity
+}

@@ -109,6 +109,13 @@ func tags(in []byte, fn func(tag) bool) {
 func skipBang(in []byte, i int) int {
 	n := len(in)
 	if i+2 < n && in[i+1] == '-' && in[i+2] == '-' {
+		// <!--> and <!---> close immediately (html5 "abrupt closing")
+		if i+3 < n && in[i+3] == '>' {
+			return i + 4
+		}
+		if i+4 < n && in[i+3] == '-' && in[i+4] == '>' {
+			return i + 5
+		}
 		j := i + 3
 		for j+2 < n && (in[j] != '-' || in[j+1] != '-' || in[j+2] != '>') {
 			j++
@@ -165,7 +172,8 @@ func parseValue(in []byte, i int) (string, int) {
 		return "", i
 	}
 	q := in[i]
-	if q == '"' || q == '\'' {
+	// backtick quoting is an old ie-ism attackers still use
+	if q == '"' || q == '\'' || q == '`' {
 		i++
 		vs := i
 		for i < n && in[i] != q {

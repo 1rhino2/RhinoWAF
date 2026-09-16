@@ -205,6 +205,11 @@ func ProtectRequest(w http.ResponseWriter, r *http.Request) bool {
 		eng := engine.Default()
 		v := eng.Inspect(r)
 		eng.LogEvent(v, requestid.FromRequest(r), ip, r.Host, r.Method, r.URL.Path)
+		// detect mode: the rules wanted a block but policy says log only.
+		// tell the operator on the wire so staging can see what would go.
+		if v.Action == engine.ActBlock && !v.Blocked() && eng.Cfg().ExplainOnBlock != "none" {
+			w.Header().Set("X-WAF-Detect", v.RuleIDs())
+		}
 		if v.Blocked() {
 			rules := ""
 			if len(v.Evidence) > 0 {

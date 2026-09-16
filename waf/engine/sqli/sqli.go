@@ -175,7 +175,7 @@ func classify(t []Token, ctx Context) (Result, bool) {
 		for j < n && t[j].Type == TLParen {
 			j++
 		}
-		if j+2 < n && isOperand(t[j].Type) && isCmp(t[j+1]) && (isOperand(t[j+2].Type) || t[j+2].Type == TLParen || t[j+2].Type == TEvil) {
+		if j+2 < n && isOperand(t[j].Type) && (isCmp(t[j+1]) || (t[j].Type == TString && t[j+1].Type == TOp && isArith(t[j+1].Val) && t[j+2].Type == TString)) && (isOperand(t[j+2].Type) || t[j+2].Type == TLParen || t[j+2].Type == TEvil) {
 			strong := t[j].Type != TBare || t[j+2].Type != TBare
 			if strong || quoted || hasComment {
 				s, e := span(t, i, j+2)
@@ -214,6 +214,14 @@ func classify(t []Token, ctx Context) (Result, bool) {
 			if n >= 3 && isCmp(t[1]) && (t[2].Type == TString || t[2].Type == TNumber) {
 				s, e := span(t, 0, 2)
 				return Result{Reason: "comparison after closed string", Start: s, End: e}, true
+			}
+			// s arith s -> '-' , '&' , '^' , '*' : the blind probes that
+			// close the string and reopen it around an operator. only when
+			// the second string is what ends the input, so "5'-6'" style
+			// measurements with text after them stay clean
+			if n == 3 && t[1].Type == TOp && isArith(t[1].Val) && t[2].Type == TString && t[2].Unterminated {
+				s, e := span(t, 0, 2)
+				return Result{Reason: "operator between closed and reopened string", Start: s, End: e}, true
 			}
 			// s then a sql clause then a comment: admin' order by 5--,
 			// ' having 1=1--, ' into outfile '..'-- . the clause words are

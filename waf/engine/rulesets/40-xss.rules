@@ -21,3 +21,29 @@ rule 941310 "utf-7 xss" {
     op rx (?i)\+A(Dw|Dw-|D4)-?
     tags xss:utf7
 }
+
+# attribute breakout without a tag: the value lands inside an existing tag,
+# so it starts with a quote and an event handler ("onclick=prompt(8)>)
+rule 941120 "event handler after attribute breakout" {
+    category xss
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, cookies, json
+    transforms urldecode, htmldecode, jsdecode, nulls, lower
+    op rx ^[^<]{0,64}["'\s/]on[a-z]{2,20}\s*=
+    tags xss:attr-breakout
+}
+
+# js context breakout: close the string the value sits in, then call a
+# sink. "-prompt(8)-" , ';a=prompt,a()//'. needs the quote right before
+rule 941390 "js sink after string breakout" {
+    category xss
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, cookies, json
+    transforms urldecode, jsdecode, nulls, lower
+    op rx ["'`]\s*[-;+,)]\s*(alert|prompt|confirm|eval|settimeout|setinterval|function|a=prompt|a=alert)\s*[(,]
+    tags xss:js-breakout
+}

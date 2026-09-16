@@ -93,12 +93,26 @@ func splitList(s string) []string {
 
 type containsOp struct{ needle []byte }
 
+// Match is case-insensitive without copying v: the needle is already lower
 func (o *containsOp) Match(v []byte) (int, int, bool) {
-	i := bytes.Index(bytes.ToLower(v), o.needle)
-	if i < 0 {
+	n := len(o.needle)
+	if n == 0 || n > len(v) {
 		return 0, 0, false
 	}
-	return i, i + len(o.needle), true
+outer:
+	for i := 0; i+n <= len(v); i++ {
+		for j := 0; j < n; j++ {
+			c := v[i+j]
+			if c >= 'A' && c <= 'Z' {
+				c += 'a' - 'A'
+			}
+			if c != o.needle[j] {
+				continue outer
+			}
+		}
+		return i, i + n, true
+	}
+	return 0, 0, false
 }
 func (o *containsOp) Name() string    { return "contains" }
 func (o *containsOp) hints() [][]byte { return [][]byte{o.needle} }

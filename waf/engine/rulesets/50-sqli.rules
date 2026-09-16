@@ -35,3 +35,15 @@ rule 942260 "sql function in query" {
     op pm @data/sql-functions.txt
     tags sqli:func
 }
+
+# mssql declare + hex-encoded statement: declare @q nvarchar(200) select @q=0x7300... exec(@q)
+rule 942500 "hex encoded statement via declare/exec" {
+    category sqli
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, cookies, json
+    transforms urldecode, lower, compress_ws
+    op rx (declare\s+@\w+\s+n?(var)?char.{0,40}0x[0-9a-f]{16,}|exec\s*\(\s*@\w+\s*\)|0x[0-9a-f]{40,}.{0,60}exec)
+    tags sqli:hex-exec
+}

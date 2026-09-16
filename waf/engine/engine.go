@@ -139,6 +139,7 @@ type Engine struct {
 	cur    atomic.Pointer[Ruleset]
 	sites  atomic.Pointer[map[string]*SiteOverride]
 	sink   atomic.Pointer[sinkHolder]
+	loader atomic.Pointer[Loader]
 	txPool sync.Pool
 	stats  stats
 }

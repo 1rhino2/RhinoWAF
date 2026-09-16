@@ -107,19 +107,21 @@ func dangerousURL(v string) bool {
 func dangerousStyle(v string) bool {
 	s := strings.ToLower(stripCtl(decodeEntities(v)))
 	s = strings.ReplaceAll(s, " ", "")
+	s = stripCSSComments(s) // expr/*x*/ession( is still expression(
 	return strings.Contains(s, "expression(") || strings.Contains(s, "javascript:") ||
 		strings.Contains(s, "-moz-binding") || strings.Contains(s, "behavior:") ||
 		strings.Contains(s, "@import")
 }
 
+// stripCtl drops every control byte: browsers ignore anything below 0x20
+// inside a url scheme, so "jav&#14;ascript:" is still javascript:
 func stripCtl(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c == 0 || c == '\t' || c == '\n' || c == '\r' || c == '\f' {
+		if s[i] < 0x20 {
 			continue
 		}
-		b.WriteByte(c)
+		b.WriteByte(s[i])
 	}
 	return b.String()
 }
@@ -127,6 +129,20 @@ func stripCtl(s string) string {
 // decodeEntities handles the numeric and a few named entities that show up
 // in scheme obfuscation. the engine's htmldecode transform is more
 // thorough, this is the attribute-local pass browsers always do.
+func stripCSSComments(s string) string {
+	for {
+		i := strings.Index(s, "/*")
+		if i < 0 {
+			return s
+		}
+		j := strings.Index(s[i+2:], "*/")
+		if j < 0 {
+			return s[:i]
+		}
+		s = s[:i] + s[i+2+j+2:]
+	}
+}
+
 func decodeEntities(s string) string {
 	if !strings.Contains(s, "&") {
 		return s

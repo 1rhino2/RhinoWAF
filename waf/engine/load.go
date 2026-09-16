@@ -157,3 +157,32 @@ func (e *Engine) Reload(l Loader) error {
 	e.cur.Store(rs)
 	return nil
 }
+
+// SetLoader remembers where the rules came from so ReloadRules can be
+// called with no arguments from the reload manager, /reload and SIGHUP.
+func (e *Engine) SetLoader(l Loader) { e.loader.Store(&l) }
+
+// ReloadRules reloads from the loader given to SetLoader.
+func (e *Engine) ReloadRules() error {
+	lp := e.loader.Load()
+	if lp == nil {
+		return fmt.Errorf("engine: no loader set")
+	}
+	return e.Reload(*lp)
+}
+
+// RulesDirs are the on-disk directories the loader reads, for the watcher.
+func (e *Engine) RulesDirs() []string {
+	lp := e.loader.Load()
+	if lp == nil {
+		return nil
+	}
+	var out []string
+	if lp.RulesDir != "" {
+		out = append(out, lp.RulesDir)
+	}
+	if lp.ExtraDir != "" {
+		out = append(out, lp.ExtraDir)
+	}
+	return out
+}

@@ -22,3 +22,30 @@ rule 930120 "access to sensitive file" {
     op pm @data/restricted-files.txt
     tags lfi:files
 }
+
+# %252e%252e%252f and %25%5c.. are the double-encoded forms; the pl1 rule
+# above decodes once on purpose so a literal %2e in a legit value is not
+# resolved twice. this one decodes twice and only looks for traversal.
+rule 930110 "path traversal (double encoded)" {
+    category lfi
+    severity critical
+    paranoia 1
+    phase request-body
+    targets path, args, args_names, cookies
+    transforms urldecode, urldecode_uni, utf8, nulls
+    op detectpath
+    tags lfi:double-encoding, cwe:22
+}
+
+# the big list of os files: /etc/apache2/apache2.conf, /proc/self/maps, all
+# the things nobody types into a search box
+rule 930130 "os file path in argument" {
+    category lfi
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, cookies, path
+    transforms urldecode, urldecode_uni, nulls, lower
+    op pm @data/lfi-os-files.txt
+    tags lfi:os-files
+}

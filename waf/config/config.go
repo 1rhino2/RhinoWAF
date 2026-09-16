@@ -164,7 +164,7 @@ type LoggingConfig struct {
 // like older builds.
 func Default() *Config {
 	return &Config{
-		Version: "2.0.0",
+		Version: "2.0.1",
 		Server: ServerConfig{
 			Listen:                   ":8080",
 			ReadHeaderTimeoutSeconds: 10,

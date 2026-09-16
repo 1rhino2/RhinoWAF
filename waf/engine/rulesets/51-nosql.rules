@@ -21,3 +21,16 @@ rule 942610 "nosql operator in json value" {
     op rx (?i)\{\s*"?\$(where|gt|ne|regex|expr|function)"?\s*:
     tags nosql:json
 }
+
+# bare operator syntax as it lands after breaking out of a js object literal:
+# $where: '1 == 1', $or: [ ... ], and the shell api db.users.find(
+rule 942620 "nosql operator or shell call in value" {
+    category nosql
+    severity critical
+    paranoia 1
+    phase request-body
+    targets args, json, cookies
+    transforms urldecode, compress_ws
+    op rx (?i)(\$(where|or|and|ne|gt|gte|lt|lte|regex|in|nin|exists|expr|comment|function)\s*:|\bdb\.[a-z_]+\.(insert|find|update|remove|drop|aggregate)\s*\()
+    tags nosql:syntax
+}

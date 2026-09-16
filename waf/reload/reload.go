@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,8 @@ type Manager struct {
 	watcher        *fsnotify.Watcher
 	ipRulesPath    string
 	geoDBPath      string
+	rulesDirs      []string
+	rulesReload    func() error
 	mu             sync.RWMutex
 	lastReload     map[string]time.Time
 	reloadDebounce time.Duration
@@ -31,6 +34,8 @@ type Manager struct {
 type Config struct {
 	IPRulesPath  string
 	GeoDBPath    string
+	RulesDirs    []string      // engine rule directories to watch for *.rules changes
+	RulesReload  func() error  // recompiles and swaps the engine ruleset
 	DebounceTime time.Duration // Minimum time between reloads for same file
 	WatchEnabled bool          // Enable automatic file watching
 }
@@ -51,6 +56,8 @@ func NewManager(config Config) (*Manager, error) {
 		watcher:        watcher,
 		ipRulesPath:    config.IPRulesPath,
 		geoDBPath:      config.GeoDBPath,
+		rulesDirs:      config.RulesDirs,
+		rulesReload:    config.RulesReload,
 		lastReload:     make(map[string]time.Time),
 		reloadDebounce: config.DebounceTime,
 		stopChan:       make(chan struct{}),
@@ -71,6 +78,13 @@ func NewManager(config Config) (*Manager, error) {
 				log.Printf("Warning: Could not watch GeoIP database file - %v (automatic reloads will be unavailable)", err)
 			} else {
 				log.Printf("Now monitoring GeoIP database for changes: %s", config.GeoDBPath)
+			}
+		}
+
+		// rule dirs may not exist yet (rules.d is optional), that is fine
+		for _, d := range config.RulesDirs {
+			if err := m.watcher.Add(d); err == nil {
+				log.Printf("Now monitoring rules directory for changes: %s", d)
 			}
 		}
 
@@ -129,6 +143,9 @@ func (m *Manager) handleFileChange(path string) {
 	} else if filepath.Base(path) == filepath.Base(m.geoDBPath) {
 		reloadFunc = m.reloadGeoDatabase
 		fileType = "geoip"
+	} else if m.rulesReload != nil && (strings.HasSuffix(path, ".rules") || strings.HasSuffix(path, ".txt")) && m.inRulesDir(path) {
+		reloadFunc = m.rulesReload
+		fileType = "rules"
 	} else {
 		// Not a file we care about
 		return
@@ -246,11 +263,34 @@ func (m *Manager) ReloadAll() error {
 		}
 	}
 
+	// engine rules: a bad file keeps the old set and reports here
+	if m.rulesReload != nil {
+		log.Printf("Reloading engine rules...")
+		if err := m.rulesReload(); err != nil {
+			errors = append(errors, fmt.Sprintf("rules: %v", err))
+			log.Printf("Error: Failed to reload engine rules - %v", err)
+		} else {
+			m.lastReload["rules"] = time.Now()
+			log.Printf("Successfully reloaded engine rules")
+			metrics.ConfigReloads.WithLabelValues("rules").Inc()
+		}
+	}
+
 	if len(errors) > 0 {
 		return fmt.Errorf("reload errors: %v", errors)
 	}
 
 	return nil
+}
+
+func (m *Manager) inRulesDir(path string) bool {
+	dir := filepath.Dir(path)
+	for _, d := range m.rulesDirs {
+		if filepath.Clean(d) == filepath.Clean(dir) {
+			return true
+		}
+	}
+	return false
 }
 
 // GetLastReloadTime returns the last reload time for a specific config type

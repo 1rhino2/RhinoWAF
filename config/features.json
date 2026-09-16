@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
+  "version": "2.0.1",
   "server": {
     "listen": ":8080",
     "read_header_timeout_seconds": 10,

@@ -16,7 +16,7 @@ func (rs *Ruleset) evaluate(tx *Tx, pol *policy, phase Phase) *scorer {
 	if len(rules) == 0 {
 		return sc
 	}
-	cand := rs.candidates(tx, pol, phase)
+	cand := rs.candidates(tx, phase)
 	for _, r := range rules {
 		if !cand[r.ordinal] {
 			continue
@@ -54,11 +54,23 @@ func (rs *Ruleset) evaluate(tx *Tx, pol *policy, phase Phase) *scorer {
 	return sc
 }
 
-// candidates returns the set of rule ordinals worth running, using the
-// prefilter. Rules with no usable hint are always in.
-func (rs *Ruleset) candidates(tx *Tx, pol *policy, phase Phase) map[int]bool {
+var prefilterView = []transform.ID{transform.URLDecode, transform.Lowercase}
+
+// candidates marks the rule ordinals worth running, using the prefilter.
+// Rules with no usable hint are always in. The bitmap lives on the tx and
+// is reused across phases, so this allocates nothing on a warm tx.
+func (rs *Ruleset) candidates(tx *Tx, phase Phase) []bool {
+	out := tx.cand
+	if cap(out) < len(rs.rules) {
+		out = make([]bool, len(rs.rules))
+	} else {
+		out = out[:len(rs.rules)]
+		for i := range out {
+			out[i] = false
+		}
+	}
+	tx.cand = out
 	pf := rs.prefilter[phase]
-	out := map[int]bool{}
 	if pf == nil {
 		for _, r := range rs.byPhase[phase] {
 			out[r.ordinal] = true
@@ -72,14 +84,13 @@ func (rs *Ruleset) candidates(tx *Tx, pol *policy, phase Phase) map[int]bool {
 		return out
 	}
 	// one prefilter view per field: urldecode + lower
-	var a, b []byte
-	view := []transform.ID{transform.URLDecode, transform.Lowercase}
+	resp := phase == PhaseRespHeaders || phase == PhaseRespBody
 	for _, f := range tx.fields {
-		if f.kind.isResponse() != (phase == PhaseRespHeaders || phase == PhaseRespBody) {
+		if f.kind.isResponse() != resp {
 			continue
 		}
 		var v []byte
-		v, a, b = transform.Run(view, f.value, a, b)
+		v, tx.pfA, tx.pfB = transform.Run(prefilterView, f.value, tx.pfA, tx.pfB)
 		pf.m.Each(v, func(patIdx, _ int) bool {
 			out[pf.hintOf[patIdx]] = true
 			return true
