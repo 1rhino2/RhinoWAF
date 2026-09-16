@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="RhinoWAF - Open source web application firewall in Go. Self-hosted DDoS protection and bot detection.">
+    <meta name="description" content="RhinoWAF - self-hosted Layer 7 web application firewall in Go, with its own rule engine.">
     <title>RhinoWAF - Self-Hosted Web Application Firewall</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -14,10 +14,10 @@
                 <div class="logo">RhinoWAF</div>
                 <ul>
                     <li><a href="index.html">Home</a></li>
-                    <li><a href="features.html">Features</a></li>
-                    <li><a href="benchmarks.html">Benchmarks</a></li>
-                    <li><a href="docs.html">Docs</a></li>
-                    <li><a href="comparison.html">Compare</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF#readme">Readme</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/rules.md">Rules</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/CHANGELOGS/V2.0.0.md">Changelog</a></li>
+                    <li><a href="https://github.com/1rhino2/RhinoWAF/releases">Releases</a></li>
                     <li><a href="https://github.com/1rhino2/RhinoWAF">GitHub</a></li>
                 </ul>
             </div>
@@ -27,70 +27,56 @@
     <section class="hero">
         <div class="container">
             <h1>Self-Hosted Web Application Firewall</h1>
-            <p>Protect your applications with Layer 7 security. No monthly fees. Full control.</p>
+            <p>A Go WAF you run on your own VPS in front of nginx, Caddy or Traefik. Rate limiting, bot challenges, and a detection engine that explains every block.</p>
             <div class="cta">
-                <a href="docs.html" class="btn-primary">Get Started</a>
-                <a href="https://github.com/1rhino2/RhinoWAF" class="btn-secondary">View on GitHub</a>
-            </div>
-            <div class="stats">
-                <div class="stat">
-                    <strong>90.49%</strong>
-                    <span>Attack Detection (327+ tests)</span>
-                </div>
-                <div class="stat">
-                    <strong>0%</strong>
-                    <span>False Positives</span>
-                </div>
-                <div class="stat">
-                    <strong>10-50k</strong>
-                    <span>Requests/Second</span>
-                </div>
+                <a href="https://github.com/1rhino2/RhinoWAF#quick-start" class="btn-primary">Quick start</a>
+                <a href="https://github.com/1rhino2/RhinoWAF/releases" class="btn-secondary">Download</a>
             </div>
         </div>
     </section>
 
     <section class="features">
         <div class="container">
-            <h2>Core Features</h2>
+            <h2>What it does</h2>
             <div class="feature-grid">
                 <div class="feature">
-                    <h3>DDoS Protection</h3>
-                    <p>Layer 7 protection with rate limiting, Slowloris detection, and adaptive throttling.</p>
+                    <h3>Detection engine</h3>
+                    <p>Its own rule engine with anomaly scoring. A SQL tokenizer and an HTML-aware XSS check instead of banned substrings, so "grant writing tips" passes and "' or 1=1--" does not.</p>
                 </div>
                 <div class="feature">
-                    <h3>Bot Detection</h3>
-                    <p>Browser fingerprinting, challenge system, and headless browser detection.</p>
+                    <h3>Explains itself</h3>
+                    <p>Every block logs which rule hit, on which argument, and the matched bytes. Detect mode lets you watch a new site before you enforce.</p>
                 </div>
                 <div class="feature">
-                    <h3>Attack Prevention</h3>
-                    <p>Blocks SQL injection, XSS, HTTP smuggling, and credential stuffing.</p>
+                    <h3>DDoS and bots</h3>
+                    <p>Per-IP rate limits, Slowloris protection, JavaScript, proof-of-work, hCaptcha and Turnstile challenges, browser fingerprinting.</p>
                 </div>
                 <div class="feature">
-                    <h3>IP Management</h3>
-                    <p>119+ config fields for whitelist, blacklist, and time-based restrictions.</p>
+                    <h3>Survives restarts</h3>
+                    <p>Auto-bans and solved challenges are persisted, so a restart does not forget who was banned or make everyone re-solve a challenge.</p>
                 </div>
                 <div class="feature">
-                    <h3>IPv6 Support</h3>
-                    <p>Full dual-stack with IPv6 rate limiting and CIDR matching.</p>
+                    <h3>IP and geo rules</h3>
+                    <p>Bans, whitelists, geo and ASN rules in JSON, hot-reloaded while running. IPv6 throughout.</p>
                 </div>
                 <div class="feature">
-                    <h3>Simple Config</h3>
-                    <p>JSON-based configuration with hot-reload support.</p>
+                    <h3>Single binary</h3>
+                    <p>No dependencies at runtime. Default rules are built in, so it works with no config and you tune from there.</p>
                 </div>
             </div>
             <div class="cta">
-                <a href="features.html" class="btn-secondary">View All Features</a>
+                <a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/rules.md" class="btn-secondary">How the rules work</a>
             </div>
         </div>
     </section>
 
     <section class="cta-section">
         <div class="container">
-            <h2>Ready to protect your applications?</h2>
-            <p>Get started with RhinoWAF in under 5 minutes</p>
+            <h2>Run it</h2>
+            <p>git clone, go build, point it at your backend. The readme covers the rest.</p>
             <div class="cta">
                 <a href="https://github.com/1rhino2/RhinoWAF" class="btn-primary">View on GitHub</a>
-                <a href="docs.html" class="btn-secondary">Read Documentation</a>
+                <a href="https://github.com/1rhino2/RhinoWAF#configuration" class="btn-secondary">Configuration</a>
             </div>
         </div>
     </section>
