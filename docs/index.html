@@ -1,91 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="RhinoWAF - self-hosted Layer 7 web application firewall in Go, with its own rule engine.">
-    <title>RhinoWAF - Self-Hosted Web Application Firewall</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RhinoWAF</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="container">
-                <div class="logo">RhinoWAF</div>
-                <ul>
-                    <li><a href="index.html">Home</a></li>
-                    <li><a href="https://github.com/1rhino2/RhinoWAF#readme">Readme</a></li>
-                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/rules.md">Rules</a></li>
-                    <li><a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/CHANGELOGS/V2.0.0.md">Changelog</a></li>
-                    <li><a href="https://github.com/1rhino2/RhinoWAF/releases">Releases</a></li>
-                    <li><a href="https://github.com/1rhino2/RhinoWAF">GitHub</a></li>
-                </ul>
-            </div>
-        </nav>
-    </header>
 
-    <section class="hero">
-        <div class="container">
-            <h1>Self-Hosted Web Application Firewall</h1>
-            <p>A Go WAF you run on your own VPS in front of nginx, Caddy or Traefik. Rate limiting, bot challenges, and a detection engine that explains every block.</p>
-            <div class="cta">
-                <a href="https://github.com/1rhino2/RhinoWAF#quick-start" class="btn-primary">Quick start</a>
-                <a href="https://github.com/1rhino2/RhinoWAF/releases" class="btn-secondary">Download</a>
-            </div>
-        </div>
-    </section>
+<h1>RhinoWAF</h1>
+<p class="sub">self-hosted layer 7 web application firewall, written in go. AGPL-3.0.</p>
 
-    <section class="features">
-        <div class="container">
-            <h2>What it does</h2>
-            <div class="feature-grid">
-                <div class="feature">
-                    <h3>Detection engine</h3>
-                    <p>Its own rule engine with anomaly scoring. A SQL tokenizer and an HTML-aware XSS check instead of banned substrings, so "grant writing tips" passes and "' or 1=1--" does not.</p>
-                </div>
-                <div class="feature">
-                    <h3>Explains itself</h3>
-                    <p>Every block logs which rule hit, on which argument, and the matched bytes. Detect mode lets you watch a new site before you enforce.</p>
-                </div>
-                <div class="feature">
-                    <h3>DDoS and bots</h3>
-                    <p>Per-IP rate limits, Slowloris protection, JavaScript, proof-of-work, hCaptcha and Turnstile challenges, browser fingerprinting.</p>
-                </div>
-                <div class="feature">
-                    <h3>Survives restarts</h3>
-                    <p>Auto-bans and solved challenges are persisted, so a restart does not forget who was banned or make everyone re-solve a challenge.</p>
-                </div>
-                <div class="feature">
-                    <h3>IP and geo rules</h3>
-                    <p>Bans, whitelists, geo and ASN rules in JSON, hot-reloaded while running. IPv6 throughout.</p>
-                </div>
-                <div class="feature">
-                    <h3>Single binary</h3>
-                    <p>No dependencies at runtime. Default rules are built in, so it works with no config and you tune from there.</p>
-                </div>
-            </div>
-            <div class="cta">
-                <a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/rules.md" class="btn-secondary">How the rules work</a>
-            </div>
-        </div>
-    </section>
+<p>
+<a href="https://github.com/1rhino2/RhinoWAF">github</a> |
+<a href="https://github.com/1rhino2/RhinoWAF#readme">readme</a> |
+<a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/rules.md">rules</a> |
+<a href="https://github.com/1rhino2/RhinoWAF/blob/main/docs/CHANGELOGS/V2.0.0.md">changelog</a> |
+<a href="https://github.com/1rhino2/RhinoWAF/releases">releases</a>
+</p>
 
-    <section class="cta-section">
-        <div class="container">
-            <h2>Run it</h2>
-            <p>git clone, go build, point it at your backend. The readme covers the rest.</p>
-            <div class="cta">
-                <a href="https://github.com/1rhino2/RhinoWAF" class="btn-primary">View on GitHub</a>
-                <a href="https://github.com/1rhino2/RhinoWAF#configuration" class="btn-secondary">Configuration</a>
-            </div>
-        </div>
-    </section>
+<hr>
 
-    <footer>
-        <div class="container">
-            <p>RhinoWAF - Open Source Web Application Firewall</p>
-            <p>Licensed under AGPL-3.0 | <a href="https://github.com/1rhino2/RhinoWAF">GitHub</a> | <a href="https://github.com/1rhino2/RhinoWAF/issues">Report Issues</a></p>
-        </div>
-    </footer>
+<h2>what it is</h2>
+<p>You run it on your own VPS in front of nginx, Caddy or Traefik. It sits between the internet and your app and deals with the layer 7 noise: floods, bots, and injection attempts. Website, panel, store, API on 80/443. Not a game server proxy.</p>
+
+<h2>what it does</h2>
+<ul>
+<li>a detection engine with anomaly scoring. its own rule format, not ModSecurity. a real SQL tokenizer and an HTML-aware XSS check instead of a list of banned words, so <code>grant writing tips</code> goes through and <code>' or 1=1--</code> does not</li>
+<li>every block says why: rule id, which argument, the bytes that matched. there is a detect mode so you can watch a new site for a day before you turn blocking on</li>
+<li>rate limiting, slowloris protection, per-IP rules, geo and ASN rules, hot reloaded from json</li>
+<li>challenges: javascript, proof of work, hCaptcha, Turnstile. browser fingerprinting to catch bot nets sharing one browser</li>
+<li>bans and solved challenges survive a restart (bbolt file next to the logs, signed cookies)</li>
+<li>exemptions for your own monitoring, body size limits, honeypot paths that ban on contact</li>
+<li>HTTP request smuggling checks, websocket limits, multi-vhost reverse proxy</li>
+<li>one static binary, default rules built in. runs with no config at all</li>
+</ul>
+
+<h2>run it</h2>
+<pre>git clone https://github.com/1rhino2/RhinoWAF.git
+cd RhinoWAF
+go build -o rhinowaf ./cmd/rhinowaf
+./rhinowaf -listen :8080 -backend http://127.0.0.1:3000</pre>
+<p>or grab a binary from <a href="https://github.com/1rhino2/RhinoWAF/releases">releases</a>. config is json under <code>config/</code>, see the readme. <code>./rhinowaf -check-rules</code> validates config and rules like <code>nginx -t</code>.</p>
+
+<h2>what a block looks like</h2>
+<pre>[ENGINE] BLOCK 203.0.113.9 POST /login score=7/5 pl=1 top=args:user rules=942100,942190 req=ab12</pre>
+
+<h2>status</h2>
+<p>2.0.x. solid enough to self host, test it in staging against your real host headers and webhooks first. no warranty.</p>
+
+<hr>
+<p class="foot"><a href="https://github.com/1rhino2/RhinoWAF/issues">issues</a> | <a href="https://github.com/1rhino2/RhinoWAF/blob/main/LICENSE">license</a></p>
+
 </body>
 </html>
