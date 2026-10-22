@@ -308,25 +308,6 @@ detection intentionally lets modern API clients (curl 8.x, python-requests)
 through to avoid blocking real automation. Latency was sub-millisecond mean on
 allowed requests. Tune `ip_rules.json` for your own traffic mix.
 
-## Paid setup (optional)
-
-Self-hosting is free under AGPL. If you would rather not fight config files, I
-also do the hands-on deploy.
-
-| Package | What you get | Price |
-|---------|--------------|-------|
-| Go-live | VPS install, Traefik or nginx in front of your app, Turnstile on flood traffic, L7 rules tuned to your domain, smoke test, short handoff doc | $125 to $250 one-time |
-| Care | Weekly health check, small config fixes after you are live | $99/mo (optional) |
-| Custom | Admin UI, multi-site, client handoff package | quoted |
-
-Terms: fixed scope, half up front, half once traffic is passing through the WAF.
-PayPal or Cash App after scope is agreed in writing.
-
-Contact: Discord `1rhino2`, or open a
-[GitHub Discussion](https://github.com/1rhino2/RhinoWAF/discussions) with your
-stack (VPS, domain, Traefik yes/no). Other work (bots, APIs, scrapers, sites) is
-at [1rhino2.github.io](https://1rhino2.github.io).
-
 ## Documentation
 
 - [IP rules](docs/configuration/IP_RULES.md), [multi-vhost](docs/configuration/MULTI_VHOST.md), [production config](docs/configuration/PRODUCTION_CONFIG.md)
