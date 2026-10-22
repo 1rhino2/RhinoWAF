@@ -10,6 +10,8 @@ the usual injection noise before any of it reaches your app.
 
 Docs and benchmarks: https://1rhino2.github.io/RhinoWAF/
 
+Security reports: see [SECURITY.md](SECURITY.md) or the [HackerOne program](https://hackerone.com/rhinowaf).
+
 ## What it does
 
 RhinoWAF sits between the internet and your backend and handles the Layer 7 side
@@ -336,3 +338,6 @@ at [1rhino2.github.io](https://1rhino2.github.io).
 
 AGPL-3.0. Network use counts as distribution, so if you run a modified version as
 a service you have to publish your changes. See [LICENSE](LICENSE).
+
+Copyright (c) 2025 1rhino2. Please keep the copyright and attribution notices
+when you redistribute it (AGPL section 5).
